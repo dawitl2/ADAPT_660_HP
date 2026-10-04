@@ -10,10 +10,12 @@ import dev.adapt.control.core.audio.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.channels.Channel
+import kotlinx.serialization.json.*
 
 enum class VoiceState { Idle, Connecting, Listening, Thinking, Speaking, Error }
 data class VoiceStatus(val state: VoiceState=VoiceState.Idle,val error: String?=null,val level: Float=0f)
 data class Transcript(val speaker: String,val text: String)
+data class StudyFeedback(val phase: String,val question: String,val quality: String,val mistake: String,val weakTopic: String)
 interface VoiceAssistantProvider {
     val status: StateFlow<VoiceStatus>
     val transcript: SharedFlow<Transcript>
@@ -36,6 +38,7 @@ class GeminiLiveProvider(private val context: Context,private val route: AudioRo
     private var playback: AudioTrack?=null
     private var generation=0
     val turns=MutableSharedFlow<String>(extraBufferCapacity=32)
+    val feedback=MutableSharedFlow<StudyFeedback>(extraBufferCapacity=32)
     override suspend fun start(instruction: String) {
         end()
         val currentGeneration=++generation
@@ -46,11 +49,15 @@ class GeminiLiveProvider(private val context: Context,private val route: AudioRo
             val live=Firebase.ai(backend=GenerativeBackend.googleAI()).liveModel(modelName=model(),generationConfig=liveGenerationConfig {
                 responseModality=ResponseModality.AUDIO
                 inputAudioTranscription=AudioTranscriptionConfig(); outputAudioTranscription=AudioTranscriptionConfig()
-            },systemInstruction=content { text(instruction.ifEmpty { "You are a concise, helpful voice assistant for ADAPT Control. Never claim to execute phone or PC actions." }) })
+            },systemInstruction=content { text(instruction.ifEmpty { "You are a concise, helpful voice assistant for ADAPT Control. Never claim to execute phone or PC actions." }) },
+                tools=if(instruction.isNotBlank()) listOf(Tool.functionDeclarations(listOf(FunctionDeclaration("record_study","Record a study question or evaluated answer without speaking metadata.",mapOf(
+                    "phase" to Schema.enumeration(listOf("question","evaluation")), "question" to Schema.string(),
+                    "quality" to Schema.enumeration(listOf("unanswered","correct","partial","incorrect")),
+                    "mistake" to Schema.string(),"weak_topic" to Schema.string()))))) else emptyList())
             val connected=withTimeout(25000) { live.connect() }
             if(currentGeneration!=generation) { connected.close(); return }
             session=connected
-            val rec=recorder(route); record=rec
+            val rec=recorder(context,route); record=rec
             val track=AudioTrack.Builder().setAudioAttributes(AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_VOICE_COMMUNICATION).setContentType(AudioAttributes.CONTENT_TYPE_SPEECH).build())
                 .setAudioFormat(AudioFormat.Builder().setEncoding(AudioFormat.ENCODING_PCM_16BIT).setSampleRate(24000).setChannelMask(AudioFormat.CHANNEL_OUT_MONO).build())
                 .setTransferMode(AudioTrack.MODE_STREAM).setBufferSizeInBytes(maxOf(8192,AudioTrack.getMinBufferSize(24000,AudioFormat.CHANNEL_OUT_MONO,AudioFormat.ENCODING_PCM_16BIT))).build()
@@ -82,6 +89,7 @@ class GeminiLiveProvider(private val context: Context,private val route: AudioRo
                             }
                         }
                         var modelText=""
+                        val toolIds=HashSet<String>()
                         connected.receive().collect { message ->
                             when(message) {
                                 is LiveServerContent -> {
@@ -92,6 +100,21 @@ class GeminiLiveProvider(private val context: Context,private val route: AudioRo
                                     if(message.turnComplete) { turns.emit(modelText); modelText=""; _status.value=_status.value.copy(state=VoiceState.Listening) }
                                 }
                                 is LiveServerGoAway -> error("Gemini session is ending. Reconnect to continue.")
+                                is LiveServerToolCall -> {
+                                    val responses=message.functionCalls.map { call ->
+                                        val valid=runCatching {
+                                            require(instruction.isNotBlank() && call.name=="record_study")
+                                            fun arg(key: String)=call.args[key]?.jsonPrimitive?.content ?: error("Missing field")
+                                            val f=StudyFeedback(arg("phase"),arg("question"),arg("quality"),arg("mistake"),arg("weak_topic"))
+                                            require(f.phase in listOf("question","evaluation") && f.quality in listOf("unanswered","correct","partial","incorrect"))
+                                            require(f.question.length in 1..1000 && f.mistake.length<=500 && f.weakTopic.length<=200)
+                                            val id=call.id ?: "${f.phase}:${f.question}:${f.quality}"
+                                            if(toolIds.add(id)) feedback.emit(f)
+                                        }.isSuccess
+                                        FunctionResponsePart(call.name,buildJsonObject { put("recorded",valid) },call.id)
+                                    }
+                                    connected.sendFunctionResponse(responses)
+                                }
                             }
                         }
                         error("Gemini connection ended. Reconnect to continue.")

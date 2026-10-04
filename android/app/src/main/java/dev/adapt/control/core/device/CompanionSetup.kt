@@ -23,6 +23,7 @@ fun associateHeadset(activity: Activity,onChooser: (IntentSender) -> Unit,onResu
         }
     },Handler(Looper.getMainLooper()))
 }
+@androidx.annotation.RequiresApi(31)
 class HeadsetPresenceService : CompanionDeviceService() {
     override fun onDeviceAppeared(address: String) { (application as AdaptApplication).graph.event("Companion headset present") }
     override fun onDeviceDisappeared(address: String) {

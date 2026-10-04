@@ -31,7 +31,7 @@ class NoteRecorder(private val context: Context,private val route: AudioRoute,pr
         val path=File(context.filesDir,"notes").apply { mkdirs() }
         val file=File(path,"${java.util.UUID.randomUUID()}.wav")
         draft.value=NoteDraft(recording=true,audioPath=file.absolutePath)
-        val rec=recorder(route); record=rec
+        val rec=recorder(context,route); record=rec
         job=scope.launch(Dispatchers.IO) {
             var count=0; var speech=false; var quiet=0; var endedNormally=false
             try {

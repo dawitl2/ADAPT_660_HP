@@ -21,10 +21,22 @@ import javax.net.ssl.*
 
 enum class ActionTarget { AI, PHONE, PC, BOTH, UTILITY, CUSTOM }
 data class ActionDefinition(val id: Int,val title: String,val target: ActionTarget)
-val actionCatalog=listOf(ActionDefinition(1,"Gemini Live",ActionTarget.AI),ActionDefinition(2,"Voice Note",ActionTarget.UTILITY),
+val actionCatalog=listOf(ActionDefinition(1,"AI Voice",ActionTarget.AI),ActionDefinition(2,"Voice Note",ActionTarget.UTILITY),
     ActionDefinition(3,"Study Companion",ActionTarget.AI),ActionDefinition(4,"Phone action",ActionTarget.PHONE),
     ActionDefinition(5,"PC action",ActionTarget.PC),ActionDefinition(6,"Focus · phone + PC",ActionTarget.BOTH))
 interface ActionProvider { suspend fun execute(action: String) }
+data class ActionStep(val label: String,val provider: ActionProvider,val action: String)
+data class ActionOutcome(val label: String,val succeeded: Boolean)
+class CombinedActionEngine {
+    suspend fun execute(steps: List<ActionStep>): List<ActionOutcome> {
+        require(steps.size in 1..8)
+        return steps.map { step ->
+            try { step.provider.execute(step.action); ActionOutcome(step.label,true) }
+            catch(e: kotlinx.coroutines.CancellationException) { throw e }
+            catch(e: Exception) { ActionOutcome(step.label,false) }
+        }
+    }
+}
 
 class PhoneActionProvider(private val context: Context,private val preferences: () -> Preferences,private val visible: () -> Boolean) : ActionProvider {
     private var torch=false
@@ -79,7 +91,16 @@ class PcActionProvider(private val vault: SecretVault) : ActionProvider {
             if(authorize) conn.setRequestProperty("Authorization","Bearer ${vault.get("pc_token")}")
             conn.outputStream.use { it.write(body.toString().toByteArray()) }
             require(conn.responseCode==200) { "PC rejected the request (${conn.responseCode})" }
-            val bytes=conn.inputStream.use { it.readNBytes(8193) }; require(bytes.size<=8192)
+            val bytes=conn.inputStream.use { input ->
+                val output=java.io.ByteArrayOutputStream()
+                val chunk=ByteArray(1024)
+                while(output.size()<=8192) {
+                    val count=input.read(chunk,0,minOf(chunk.size,8193-output.size()))
+                    if(count<0) break
+                    output.write(chunk,0,count)
+                }
+                output.toByteArray()
+            }; require(bytes.size<=8192)
             JSONObject(bytes.toString(Charsets.UTF_8))
         } finally { conn.disconnect() }
     }

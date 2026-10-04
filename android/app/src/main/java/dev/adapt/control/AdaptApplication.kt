@@ -6,8 +6,6 @@ import android.media.MediaPlayer
 import android.os.Build
 import androidx.core.content.ContextCompat
 import com.google.firebase.FirebaseApp
-import com.google.firebase.appcheck.FirebaseAppCheck
-import com.google.firebase.appcheck.playintegrity.PlayIntegrityAppCheckProviderFactory
 import dev.adapt.control.core.ai.*
 import dev.adapt.control.core.audio.*
 import dev.adapt.control.core.data.*
@@ -43,11 +41,13 @@ class AppGraph(val context: Context) {
     val events=MutableStateFlow<List<String>>(emptyList())
     val transcripts=MutableStateFlow<List<Transcript>>(emptyList())
     val study=MutableStateFlow(StudyProgress())
+    val timings=MutableStateFlow<Map<Int,Long>>(emptyMap())
     val route: AudioRoute=AudioRoute(context) { reason -> scope.launch { stopSession(); notes.stop(); message.value=reason } }
     val gemini=GeminiLiveProvider(context,route,scope,{ preferences.value.model },{ allowPhone.value })
     val system=SystemAssistantProvider(context)
     val pc=PcActionProvider(vault)
     val phone=PhoneActionProvider(context,{ preferences.value },{ visible })
+    val combined=CombinedActionEngine()
     val transport=SimulatorTransport({ vault.get("bridge_token") },scope)
     val router=ButtonRouter { action -> if(armed.value) execute(action,true) else message.value="Enable hands-free mode while ADAPT Control is open" }
     val notes: NoteRecorder=NoteRecorder(context,route,scope) { auto -> if(auto) saveNote() }
@@ -56,7 +56,6 @@ class AppGraph(val context: Context) {
     private var sessionTimeout: Job?=null
     private var playback: MediaPlayer?=null
     private var sessionStarted=0L
-    private var modelTurn=""
     init {
         scope.launch { try { repository.load(); ready.value=true } catch(e: Exception) { message.value="Local library could not be read. Existing files are preserved." } }
         scope.launch { transport.frames.collect { f ->
@@ -65,6 +64,11 @@ class AppGraph(val context: Context) {
                 4 -> runCatching { router.accept(Acp.button(f)) }.onFailure { message.value="Action could not run. Review setup and permissions." }
                 13 -> message.value="Firmware rejected command (${f.payload[0].toInt() and 255})"
                 12 -> message.value="Diagnostic ping received"
+                7,6 -> if(f.flags==1) {
+                    val key=f.payload[0].toInt() and 255
+                    val value=java.nio.ByteBuffer.wrap(f.payload,1,4).order(java.nio.ByteOrder.LITTLE_ENDIAN).int.toLong() and 0xffffffffL
+                    if(key in 1..5) timings.value=timings.value+(key to value)
+                }
             }
         } }
         scope.launch {
@@ -76,7 +80,7 @@ class AppGraph(val context: Context) {
         scope.launch { gemini.transcript.collect { line ->
             transcripts.value=(transcripts.value+line).takeLast(500)
         } }
-        scope.launch { gemini.turns.collect { text -> if(study.value.active) study.value=StudyRules.parse(study.value,text) } }
+        scope.launch { gemini.feedback.collect { feedback -> if(study.value.active) study.value=StudyRules.applyFeedback(study.value,feedback) } }
         scope.launch { gemini.status.map { it.state }.distinctUntilChanged().collect { state ->
             if(state==VoiceState.Error) { sessionTimeout?.cancel(); message.value=gemini.status.value.error }
         } }
@@ -89,7 +93,17 @@ class AppGraph(val context: Context) {
         catch(e: Exception) { message.value="Open the app and grant microphone permission to enable hands-free mode" }
     }
     fun disarm() { context.stopService(Intent(context,ControlService::class.java)); armed.value=false; run { stopSession(); transport.disconnect() } }
-    suspend fun connect() { transport.connect(); applyMappings(); repository.log("Firmware simulator connected") }
+    suspend fun connect() {
+        transport.connect(); applyMappings()
+        for(key in 1..5) transport.send(Frame(7,0,200+key,byteArrayOf(key.toByte())))
+        repository.log("Firmware simulator connected")
+    }
+    suspend fun timing(key: Int,value: Long) {
+        require(key in 1..5 && value in 1..60000) { "Timing must be 1–60000 milliseconds" }
+        val payload=java.nio.ByteBuffer.allocate(5).order(java.nio.ByteOrder.LITTLE_ENDIAN).put(key.toByte()).putInt(value.toInt()).array()
+        transport.send(Frame(6,0,300+key,payload))
+        // Update only after the firmware's successful response; invalid combinations retain prior values.
+    }
     private suspend fun applyMappings() { preferences.value.mappings.forEachIndexed { index,action ->
         transport.send(Frame(5,0,index+1,byteArrayOf((index+1).toByte(),action.toByte(),0)))
     } }
@@ -112,14 +126,21 @@ class AppGraph(val context: Context) {
             3 -> { if(study.value.active) stopSession() else startVoice(true) }
             4 -> phone.execute(preferences.value.phoneAction)
             5 -> pc.execute(preferences.value.pcAction)
-            6 -> { startVoice(true); pc.execute("open_app"); repository.log("Focus · phone + PC") }
+            6 -> {
+                val studyAction=object : ActionProvider { override suspend fun execute(action: String) {
+                    require(action=="study"); startVoice(true); check(gemini.status.value.state==VoiceState.Listening)
+                } }
+                val results=combined.execute(listOf(ActionStep("Phone study",studyAction,"study"),ActionStep("PC app",pc,"open_app")))
+                message.value=results.joinToString(" · ") { "${it.label}: ${if(it.succeeded) "started" else "unavailable"}" }
+                repository.log("Focus · ${results.count { it.succeeded }}/${results.size} actions started")
+            }
             else -> error("Configure a supported action first")
         }
     }
     private suspend fun startVoice(studyMode: Boolean) {
         stopSession(); notes.stop(); playback?.release(); playback=null
         require(preferences.value.provider=="Gemini Live" || studyMode) { "System assistant launch is available from the visible Voice screen; hands-free Gemini uses the integrated provider" }
-        transcripts.value=emptyList(); modelTurn=""
+        transcripts.value=emptyList()
         val prefs=preferences.value
         study.value=StudyProgress(topic=prefs.topic,mode=prefs.mode,active=studyMode)
         val history=repository.studies.value.take(5).flatMap { it.weakTopics.split('\n') }.filter { it.isNotBlank() }.distinct().joinToString(", ")
@@ -134,13 +155,12 @@ class AppGraph(val context: Context) {
         sessionTimeout?.cancel(); sessionTimeout=null
         gemini.end()
         if(study.value.active && sessionStarted!=0L) {
-            if(modelTurn.isNotBlank()) study.value=StudyRules.parse(study.value,modelTurn)
             val s=study.value
             repository.save(StudySession(topic=s.topic,mode=s.mode,questions=s.questions.joinToString("\n"),answerQuality=s.quality.joinToString("\n"),
                 mistakes=s.mistakes.joinToString("\n"),weakTopics=s.weakTopics.joinToString("\n"),transcript=transcripts.value.joinToString("\n") { "${it.speaker}: ${it.text}" },score=s.score,total=s.total))
         }
         if(sessionStarted!=0L) repository.log("${if(study.value.active) "Study" else "Gemini"} session — ${(System.currentTimeMillis()-sessionStarted)/1000}s")
-        sessionStarted=0; study.value=study.value.copy(active=false); modelTurn=""
+        sessionStarted=0; study.value=study.value.copy(active=false)
     }
     suspend fun saveNote(): Unit = noteSaving.withLock {
         if(notes.draft.value.recording) notes.stop()

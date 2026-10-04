@@ -69,11 +69,15 @@ class AudioRoute(private val context: Context,private val interrupted: (String) 
     }
 }
 
-fun recorder(route: AudioRoute): AudioRecord = AudioRecord.Builder()
+fun recorder(context: Context,route: AudioRoute): AudioRecord {
+    if(context.checkSelfPermission(android.Manifest.permission.RECORD_AUDIO)!=android.content.pm.PackageManager.PERMISSION_GRANTED)
+        throw SecurityException("Microphone permission is required")
+    return AudioRecord.Builder()
     .setAudioSource(MediaRecorder.AudioSource.VOICE_COMMUNICATION)
     .setAudioFormat(AudioFormat.Builder().setEncoding(AudioFormat.ENCODING_PCM_16BIT).setSampleRate(16000).setChannelMask(AudioFormat.CHANNEL_IN_MONO).build())
     .setBufferSizeInBytes(maxOf(8192,AudioRecord.getMinBufferSize(16000,AudioFormat.CHANNEL_IN_MONO,AudioFormat.ENCODING_PCM_16BIT)))
     .build().also { check(it.state==AudioRecord.STATE_INITIALIZED); route.input()?.let(it::setPreferredDevice) }
+}
 fun waveform(bytes: ByteArray,count: Int): Float {
     var sum=0.0
     for(i in 0 until count-1 step 2) { val sample=((bytes[i].toInt() and 255) or (bytes[i+1].toInt() shl 8)).toShort().toDouble(); sum+=sample*sample }
