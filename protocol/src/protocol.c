@@ -19,13 +19,13 @@ uint16_t acp_crc16(const uint8_t* p, size_t n) {
 static acp_status validate(const acp_message* m) {
     uint16_t expected=0;
     if (m->length > ACP_MAX_PAYLOAD) return ACP_BAD_LENGTH;
-    if (m->type < ACP_HELLO || m->type > ACP_LOG_EVENT) return ACP_BAD_TYPE;
+    if (m->type < ACP_HELLO || m->type > ACP_FIRMWARE_METADATA) return ACP_BAD_TYPE;
     if (m->flags > ACP_EVENT) return ACP_BAD_FLAGS;
     if (m->type == ACP_ACTION_EVENT || m->type == ACP_LOG_EVENT) {
         if (m->flags != ACP_EVENT) return ACP_BAD_FLAGS;
     } else if (m->type == ACP_ERROR || m->type == ACP_PONG) {
         if (m->flags != ACP_RESPONSE) return ACP_BAD_FLAGS;
-    } else if (m->flags == ACP_EVENT) return ACP_BAD_FLAGS;
+    } else if (m->flags == ACP_EVENT && m->type != ACP_LIFECYCLE_STATE) return ACP_BAD_FLAGS;
     if (m->type == ACP_PING && m->flags != 0) return ACP_BAD_FLAGS;
     switch(m->type) {
     case ACP_HELLO: expected=2; break;
@@ -37,6 +37,9 @@ static acp_status validate(const acp_message* m) {
     case ACP_GET_SETTING: expected=m->flags ? 5 : 1; break;
     case ACP_ERROR: expected=3; break;
     case ACP_LOG_EVENT: expected=6; break;
+    case ACP_GET_DIAGNOSTIC: expected=m->flags ? 19 : 1; break;
+    case ACP_LIFECYCLE_STATE: expected=m->flags ? 5 : 0; break;
+    case ACP_FIRMWARE_METADATA: expected=m->flags ? 83 : 0; break;
     case ACP_PING: case ACP_PONG: return ACP_OK;
     default: expected=0; break;
     }
@@ -77,6 +80,7 @@ acp_status acp_decode(const uint8_t* frame, size_t size, acp_message* out) {
 const char* acp_type_name(uint8_t t) {
     static const char* names[]={"UNKNOWN","HELLO","GET_CAPABILITIES","GET_DEVICE_STATE",
         "ACTION_EVENT","SET_ACTION_MAPPING","SET_SETTING","GET_SETTING","ENTER_PAIRING",
-        "REQUEST_REBOOT","REQUEST_BOOTLOADER","PING","PONG","ERROR","LOG_EVENT"};
-    return t<=ACP_LOG_EVENT ? names[t] : names[0];
+        "REQUEST_REBOOT","REQUEST_BOOTLOADER","PING","PONG","ERROR","LOG_EVENT",
+        "GET_DIAGNOSTIC","LIFECYCLE_STATE","FIRMWARE_METADATA"};
+    return t<=ACP_FIRMWARE_METADATA ? names[t] : names[0];
 }

@@ -34,7 +34,10 @@ int main() {
         {ACP_SET_SETTING,1,5},{ACP_GET_SETTING,0,1},{ACP_GET_SETTING,1,5},
         {ACP_ENTER_PAIRING,0,0},{ACP_ENTER_PAIRING,1,0},{ACP_REQUEST_REBOOT,0,0},
         {ACP_REQUEST_REBOOT,1,0},{ACP_REQUEST_BOOTLOADER,0,0},{ACP_REQUEST_BOOTLOADER,1,0},
-        {ACP_PING,0,128},{ACP_PONG,1,128},{ACP_ERROR,1,3},{ACP_LOG_EVENT,2,6}
+        {ACP_PING,0,128},{ACP_PONG,1,128},{ACP_ERROR,1,3},{ACP_LOG_EVENT,2,6},
+        {ACP_GET_DIAGNOSTIC,0,1},{ACP_GET_DIAGNOSTIC,1,19},
+        {ACP_LIFECYCLE_STATE,0,0},{ACP_LIFECYCLE_STATE,1,5},{ACP_LIFECYCLE_STATE,2,5},
+        {ACP_FIRMWARE_METADATA,0,0},{ACP_FIRMWARE_METADATA,1,83}
     };
     for (const auto shape : shapes) {
         acp_message input{}; input.type=shape.type; input.flags=shape.flags;
@@ -69,5 +72,5 @@ int main() {
         if (acp_decode(wire.data(),n,&output)!=ACP_OK)
             CHECK(std::memcmp(&output,&sentinel,sizeof(output))==0);
     }
-    std::cout << "23 protocol shapes, CRC, action fields and 10000 seeded malformed frames passed\n";
+    std::cout << "30 protocol shapes, CRC, action fields and 10000 seeded malformed frames passed\n";
 }

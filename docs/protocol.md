@@ -2,6 +2,7 @@
 
 This is our protocol, not an EPOS command format. Shared C99 implementation:
 `protocol/include/adapt_protocol.h`; C++17 clients use the same API.
+Capability-gated [Phase 2 extensions](protocol-extensions.md) preserve this base format.
 
 One frame: magic `41 43`, major `00`, minor `01`, type u8, flags u8, sequence u16,
 payload length u16, payload (0–128 bytes), CRC16 u16. All integers little endian.
