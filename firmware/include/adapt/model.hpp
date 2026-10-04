@@ -20,8 +20,13 @@ struct Settings {
     ButtonTiming timing{};
     std::array<Action, 3> mapping{Action::VoiceAssistant, Action::VoiceNote, Action::StudyCompanion};
     Anc anc = Anc::On;
+    bool confirmation_tones = true;
+    Action preferred_action = Action::VoiceAssistant;
+    bool multipoint = true; // preference, never a claim of hardware support
+    uint8_t diagnostic_level = 1; // 0 off, 1 normal, 2 verbose
     bool valid() const {
-        if (!timing.valid() || anc < Anc::Off || anc > Anc::Adaptive) return false;
+        if (!timing.valid() || anc < Anc::Off || anc > Anc::Adaptive ||
+            !valid_action(static_cast<uint16_t>(preferred_action)) || diagnostic_level > 2) return false;
         for (const auto action : mapping) if (!valid_action(static_cast<uint16_t>(action))) return false;
         return true;
     }
