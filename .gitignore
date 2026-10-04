@@ -32,3 +32,9 @@ local.properties
 .vscode/
 .gradle/
 **/node_modules/
+google-services.json
+firebase.properties
+**/secrets.json
+*.apk
+*.aab
+pc/state/
