@@ -110,6 +110,9 @@ executable. Development continues through the full simulator meanwhile.
 - Physical-target refusal exercised locally: expected configuration failure, no
   image built. The compiled pending-target smoke test checks explicit unknown/error.
 - Linux Clang ASan/UBSan CI job added alongside Windows MSVC/Linux Release builds.
+  Linux Release and ASan/UBSan passed all 16 suites on `766b489`. MSVC exposed
+  missing explicit standard string includes in the file adapter and its test;
+  both now include their own declarations rather than relying on GCC's transitive headers.
   Hosted results must be read from Actions; local MinGW32 does not supply these
   sanitizer runtimes. Final remote validation is reported separately in chat.
 - Git whitespace/tracked-file review: no vendor binaries, audio captures, settings,
@@ -134,6 +137,9 @@ aec2638 sim: persist versioned settings through atomic host file replacement
 0144383 firmware: route standard headset and touch controls through optional vendor HAL
 7bf4ff2 test: stress structured protocol inputs and enable Linux ASan UBSan validation
 30f1439 fix: bound gesture waits and analog recovery retries and notify peer changes
+8d62a2e docs: report Phase 2 implementation validation and physical integration limits
+a42accd fix: include standard string declarations explicitly for MSVC file storage
+766b489 fix: reset simulated radio state and distinguish software and power boot reasons
 ```
 
 This report/documentation commit and any validated portability corrections follow

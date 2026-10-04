@@ -3,6 +3,7 @@
 #include "check.hpp"
 #include <chrono>
 #include <fstream>
+#include <string>
 using namespace adapt;
 int main() {
     auto root=std::filesystem::temp_directory_path()/std::filesystem::path("adapt-config-"+std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
