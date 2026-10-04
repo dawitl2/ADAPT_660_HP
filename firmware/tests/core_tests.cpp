@@ -28,8 +28,9 @@ int main() {
       CHECK(acp_read16(m.payload+1)==ACP_CUSTOM_ACTION_8); CHECK(acp_read64(m.payload+3)==1234567890123ULL);
       f.error(ACP_SET_ACTION_MAPPING,4,1,ACP_ERR_INVALID); f.error(ACP_SET_ACTION_MAPPING,1,9,ACP_ERR_INVALID); }
     { Fixture f; f.c.gesture(Gesture::VeryLong,5000); CHECK(f.h.link==Link::Pairing);
-      CHECK(f.h.bt.frames.size()==1); acp_message m{}; const auto& wire=f.h.bt.frames.back();
-      CHECK(acp_decode(wire.data(),wire.size(),&m)==ACP_OK); CHECK(m.type==ACP_LOG_EVENT); }
+      CHECK(!f.h.bt.frames.empty());
+      for (const auto& wire : f.h.bt.frames) { acp_message m{};
+        CHECK(acp_decode(wire.data(),wire.size(),&m)==ACP_OK); CHECK(m.type==ACP_LOG_EVENT); } }
     { Fixture f; f.h.usb.trusted=false; f.error(ACP_SET_SETTING,1,700,ACP_ERR_DENIED); CHECK(f.c.settings().timing.short_max_ms==650); }
     { Fixture f; f.error(ACP_SET_SETTING,3,100,ACP_ERR_INVALID); f.error(ACP_SET_SETTING,6,257,ACP_ERR_INVALID);
       f.h.save_ok=false; f.error(ACP_SET_SETTING,1,700,ACP_ERR_STORAGE); CHECK(f.c.settings().timing.short_max_ms==650);
@@ -42,7 +43,8 @@ int main() {
       f.tick(); CHECK(f.c.state().mode==Mode::Analog); CHECK(!f.h.wireless_enabled);
       f.h.jack=false; f.tick(); CHECK(f.c.state().mode==Mode::ToWireless);
       f.tick(); CHECK(f.c.state().mode==Mode::WirelessRecovery); f.h.recovery_ok=false; f.tick();
-      CHECK(f.c.state().mode==Mode::WirelessRecovery); f.h.recovery_ok=true; f.tick(); CHECK(f.c.state().mode==Mode::Wireless); }
+      CHECK(f.c.state().mode==Mode::WirelessRecovery); f.h.recovery_ok=true;
+      f.tick(); CHECK(f.c.state().mode==Mode::WirelessRecovery); f.h.time+=500; f.tick(); CHECK(f.c.state().mode==Mode::Wireless); }
     { Fixture f; f.h.jack=true; f.tick(); f.tick(); f.h.jack=false; f.tick(); f.tick();
       f.h.jack=true; f.tick(); CHECK(f.c.state().mode==Mode::ToAnalog); f.tick(); CHECK(f.c.state().mode==Mode::Analog); }
     { Fixture f; f.error(ACP_REQUEST_BOOTLOADER,0,0,ACP_ERR_DENIED); f.error(ACP_REQUEST_REBOOT,0,0,ACP_ERR_DENIED);

@@ -16,7 +16,7 @@ struct Transport : hal::ControlTransport {
 struct Backend : hal::ButtonInput, hal::TouchSurface, hal::BluetoothAudio,
     hal::AncControl, hal::Microphones, hal::Speakers, hal::Battery, hal::Charger,
     hal::AnalogJack, hal::WearSensor, hal::PersistentSettings, hal::Feedback,
-    hal::Clock, hal::BootRecovery {
+    hal::Clock, hal::BootRecovery, hal::Runtime {
     Transport bt, usb;
     uint64_t time=0;
     bool down=false, jack=false, wireless_enabled=true, stored=false, save_ok=true;
@@ -28,8 +28,19 @@ struct Backend : hal::ButtonInput, hal::TouchSurface, hal::BluetoothAudio,
     Charging charging=Charging::No;
     Anc anc=Anc::On;
     Settings persisted{};
+    bool power=true, wake=true, usb_audio=false, responsive=true, connecting=false, call=false;
+    uint8_t peers=0, active_peer=255;
+    uint32_t restart_count=0;
     std::vector<uint16_t> feedback;
-    hal::Platform platform() { return {*this,*this,bt,usb,*this,*this,*this,*this,*this,*this,*this,*this,*this,*this,*this,*this}; }
+    hal::Platform platform() { return {*this,*this,bt,usb,*this,*this,*this,*this,*this,*this,*this,*this,*this,*this,*this,*this,this}; }
+    bool powered() const override { return power; }
+    bool awake() const override { return wake; }
+    bool usb_audio_active() const override { return usb_audio; }
+    uint32_t boot_reason() const override { return 1; }
+    Status radio_status() const override {
+        const uint8_t count=link==Link::Connected ? (peers ? peers : uint8_t{1}) : uint8_t{0};
+        return {true,responsive,connecting,call,count,count ? (active_peer==255 ? uint8_t{0} : active_peer) : uint8_t{255},2};
+    }
     bool purple_down() const override { return down; }
     hal::TouchSample touch() const override { return {}; }
     Link link_state() const override { return link; }
@@ -37,10 +48,11 @@ struct Backend : hal::ButtonInput, hal::TouchSurface, hal::BluetoothAudio,
     bool pair() override { if (!pairing_ok || !wireless_enabled) return false; link=Link::Pairing; return true; }
     bool wireless(bool enabled) override {
         wireless_enabled=enabled;
-        if (!enabled) { link=Link::Disconnected; audio=microphone=speaker=Activity::Inactive; }
+        if (!enabled) { link=Link::Disconnected; peers=0; active_peer=255; connecting=call=false; audio=microphone=speaker=Activity::Inactive; }
         return true;
     }
-    bool recover_wireless() override { if (!recovery_ok) return false; wireless(true); link=Link::Disconnected; return true; }
+    bool recover_wireless() override { ++restart_count; if (!recovery_ok) return false;
+        wireless(false); wireless(true); responsive=true; return true; }
     Anc anc_state() const override { return anc; }
     bool set_anc(Anc value) override { if (!anc_ok) return false; anc=value; return true; }
     Activity microphone_state() const override { return microphone; }
