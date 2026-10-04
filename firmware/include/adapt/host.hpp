@@ -28,6 +28,7 @@ struct Backend : hal::ButtonInput, hal::TouchSurface, hal::BluetoothAudio,
     Charging charging=Charging::No;
     Anc anc=Anc::On;
     Settings persisted{};
+    hal::PersistentSettings* durable=nullptr;
     bool power=true, wake=true, usb_audio=false, responsive=true, connecting=false, call=false;
     uint8_t peers=0, active_peer=255;
     uint32_t restart_count=0;
@@ -61,8 +62,9 @@ struct Backend : hal::ButtonInput, hal::TouchSurface, hal::BluetoothAudio,
     Charging charging_state() const override { return charging; }
     bool jack_inserted() const override { return jack; }
     Activity wear_state() const override { return wear; }
-    bool load(Settings& out) const override { if (!stored) return false; out=persisted; return true; }
-    bool save(const Settings& value) override { if (!save_ok) return false; persisted=value; stored=true; return true; }
+    bool load(Settings& out) const override { if (durable) return durable->load(out); if (!stored) return false; out=persisted; return true; }
+    bool save(const Settings& value) override { if (!save_ok || (durable && !durable->save(value))) return false;
+        persisted=value; stored=true; return true; }
     void signal(uint16_t code) override { feedback.push_back(code); }
     uint64_t now_ms() const override { return time; }
     bool permitted(hal::BootRequest) const override { return allow_boot; }
