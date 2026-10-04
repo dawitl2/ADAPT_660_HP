@@ -138,7 +138,7 @@ int main(int argc, char** argv) {
             else if (cmd=="pairing") request(ACP_ENTER_PAIRING);
             else if (cmd=="reboot") request(ACP_REQUEST_REBOOT);
             else if (cmd=="bootloader") request(ACP_REQUEST_BOOTLOADER);
-            else if (cmd=="power-on") { host.boot_pending=true; host.boot_kind=hal::BootRequest::Reboot; }
+            else if (cmd=="power-on") { host.boot_reason_code=1; host.boot_pending=true; host.boot_kind=hal::BootRequest::Reboot; }
             else if (cmd=="allow-boot" || cmd=="charging") {
                 input >> arg; if (arg!="on" && arg!="off") throw 1;
                 if (cmd=="allow-boot") host.allow_boot=arg=="on";
@@ -196,7 +196,9 @@ int main(int argc, char** argv) {
                 // No flash protocol; next power-on leaves simulated bootloader.
             } else {
                 bootloader_mode=false;
-                host.down=false; host.wireless(true); host.link=Link::Disconnected;
+                host.down=false; host.power=host.wake=host.responsive=true;
+                host.wireless(false); host.wireless(true); host.link=Link::Disconnected;
+                host.volume_percent=50; host.ambient_enabled=host.muted=false; host.touches.clear(); host.media_commands.clear();
                 core=std::make_unique<Core>(host.platform(),511,identity::version);
                 std::cout << "{\"simulated_reboot\":true}\n";
             }

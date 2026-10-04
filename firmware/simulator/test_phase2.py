@@ -31,6 +31,13 @@ assert any(e.get("feedback") == 4 for e in events)
 assert events[-1] == {"barrier": 77}
 metadata = bytes.fromhex(next(e["payload_hex"] for e in events if e.get("type") == "FIRMWARE_METADATA"))
 assert metadata[:32].rstrip(b"\0") == b"ADAPT 660 HP" and metadata[-1] == 0
+reboot = run(["peers 2", "call on", "audio on", "allow-boot on", "reboot", "state", "diagnostic 0",
+              "power-on", "diagnostic 0"])
+state = bytes.fromhex(next(e["payload_hex"] for e in reversed(reboot) if e.get("type") == "GET_DEVICE_STATE"))
+assert state[3:6] == bytes([1, 1, 1]), state # disconnected, audio/mic inactive
+boot = [bytes.fromhex(e["payload_hex"]) for e in reboot if e.get("type") == "GET_DIAGNOSTIC"]
+assert [int.from_bytes(p[13:15], "little") for p in boot] == [10, 10]
+assert [int.from_bytes(p[15:], "little") for p in boot] == [2, 1]
 
 with tempfile.TemporaryDirectory() as directory:
     path = Path(directory) / "settings.acfg"

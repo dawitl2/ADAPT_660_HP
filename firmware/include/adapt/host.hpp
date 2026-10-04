@@ -33,6 +33,7 @@ struct Backend : hal::ButtonInput, hal::TouchSurface, hal::BluetoothAudio,
     bool power=true, wake=true, usb_audio=false, responsive=true, connecting=false, call=false;
     uint8_t peers=0, active_peer=255;
     uint32_t restart_count=0;
+    uint32_t boot_reason_code=1;
     bool ambient_enabled=false, multipoint_enabled=true, controls_ok=true, muted=false;
     uint8_t volume_percent=50;
     std::vector<hal::TouchGesture> touches;
@@ -64,7 +65,7 @@ struct Backend : hal::ButtonInput, hal::TouchSurface, hal::BluetoothAudio,
     bool powered() const override { return power; }
     bool awake() const override { return wake; }
     bool usb_audio_active() const override { return usb_audio; }
-    uint32_t boot_reason() const override { return 1; }
+    uint32_t boot_reason() const override { return boot_reason_code; }
     Status radio_status() const override {
         const uint8_t count=link==Link::Connected ? (peers ? peers : uint8_t{1}) : uint8_t{0};
         return {true,responsive,connecting,call,count,count ? (active_peer==255 ? uint8_t{0} : active_peer) : uint8_t{255},
@@ -98,6 +99,7 @@ struct Backend : hal::ButtonInput, hal::TouchSurface, hal::BluetoothAudio,
     void signal(uint16_t code) override { feedback.push_back(code); }
     uint64_t now_ms() const override { return time; }
     bool permitted(hal::BootRequest) const override { return allow_boot; }
-    bool request_boot(hal::BootRequest kind) override { if (!allow_boot) return false; boot_pending=true; boot_kind=kind; return true; }
+    bool request_boot(hal::BootRequest kind) override { if (!allow_boot) return false;
+        boot_reason_code=2; boot_pending=true; boot_kind=kind; return true; }
 };
 }
