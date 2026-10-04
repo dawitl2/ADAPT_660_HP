@@ -19,6 +19,18 @@ struct BluetoothAudio {
     virtual bool pair() = 0;
     virtual bool wireless(bool enabled) = 0;
     virtual bool recover_wireless() = 0;
+    struct Status {
+        bool available=false, responsive=true, connecting=false, call=false;
+        uint8_t peers=0, active_peer=255, max_peers=0;
+    };
+    virtual Status radio_status() const { return {}; }
+};
+struct Runtime {
+    virtual ~Runtime() = default;
+    virtual bool powered() const = 0;
+    virtual bool awake() const = 0;
+    virtual bool usb_audio_active() const = 0;
+    virtual uint32_t boot_reason() const = 0; // 0 unknown, 1 power, 2 software, 3 watchdog
 };
 struct AncControl { virtual ~AncControl() = default; virtual Anc anc_state() const = 0; virtual bool set_anc(Anc mode) = 0; };
 struct Microphones { virtual ~Microphones() = default; virtual Activity microphone_state() const = 0; };
@@ -46,5 +58,6 @@ struct Platform {
     BluetoothAudio& audio; AncControl& anc; Microphones& microphones; Speakers& speakers;
     Battery& battery; Charger& charger; AnalogJack& jack; WearSensor& wear;
     PersistentSettings& settings; Feedback& feedback; Clock& clock; BootRecovery& boot;
+    Runtime* runtime=nullptr; // optional on legacy Phase 1 adapters
 };
 }
