@@ -6,6 +6,9 @@
 - User reports that analog-cable use restored otherwise unusable Bluetooth. This
   confirms a reported observation, not a diagnosed cause or repeatable lab result.
 - Host builds/tests use GCC 12.2 (MinGW, 32-bit), CMake 4.3.2 and Python 3.12.
+- Official guide documents Teams/pairing holds around 4 seconds. This does not
+  change our 5-second simulated recovery default; measured timing on this unit
+  is still UNKNOWN. See [recovery sources](recovery.md).
 
 ## ASSUMED
 
