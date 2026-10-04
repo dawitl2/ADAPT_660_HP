@@ -1,5 +1,6 @@
 import importlib.util
 import unittest
+from types import SimpleNamespace
 from pathlib import Path
 
 
@@ -11,6 +12,22 @@ def module(name):
 
 
 class UsbTests(unittest.TestCase):
+    def test_standard_interface_read_never_claims(self):
+        calls = []
+        class Backend:
+            def open_device(self, device):
+                calls.append("open")
+                return "handle"
+            def close_device(self, handle):
+                calls.append("close")
+            def ctrl_transfer(self, handle, kind, request, value, interface, buffer, timeout):
+                calls.append((kind, request, value, interface, timeout))
+                buffer[0] = 42
+                return 1
+        device = SimpleNamespace(_ctx=SimpleNamespace(backend=Backend(), dev="fake"))
+        self.assertEqual(module("descriptors").interface_read_no_claim(device, 6, 0x2200, 3, 63), bytes([42]))
+        self.assertEqual(calls, ["open", (0x81, 6, 0x2200, 3, 1000), "close"])
+
     def test_inventory_diff(self):
         compare = module("compare").compare
         a = {"devices": [{"device_id": "headset", "pid": "0010"}, {"device_id": "gone"}]}

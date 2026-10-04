@@ -1,8 +1,27 @@
 """Optional PyUSB standard descriptor reads; never claim/set configuration/detach."""
 import argparse
+from array import array
 import json
 from datetime import datetime, timezone
 from pathlib import Path
+
+
+def interface_read_no_claim(device, request, value, interface, size):
+    """Isolated PyUSB 1.3.1 backend shim: public ctrl_transfer auto-claims interfaces.
+
+    Use the backend directly for standard IN requests; never claim or detach.
+    Unsupported native-driver access fails normally and is reported by caller.
+    """
+    backend = device._ctx.backend
+    handle = backend.open_device(device._ctx.dev)
+    try:
+        buffer = array("B", [0]) * size
+        received = backend.ctrl_transfer(handle, 0x81, request, value, interface, buffer, 1000)
+        if not 0 <= received <= size:
+            raise ValueError("invalid descriptor read length")
+        return bytes(buffer[:received])
+    finally:
+        backend.close_device(handle)
 
 
 def hid_report_length(extra):
@@ -58,8 +77,12 @@ def inspect(device, read_hid=False):
                 # Reading inactive alternate/config interfaces is intentionally skipped.
                 if read_hid and size and interface.bAlternateSetting == 0 and config.bConfigurationValue == active_config:
                     try:
-                        item["hid_report_descriptor_hex"] = bytes(device.ctrl_transfer(
-                            0x81, 0x06, 0x2200, interface.bInterfaceNumber, size, timeout=1000)).hex()
+                        alternate = interface_read_no_claim(device, 0x0A, 0, interface.bInterfaceNumber, 1)
+                        if alternate != b"\x00":
+                            item["hid_error"] = "active alternate is unavailable/nonzero; skipped"
+                        else:
+                            item["hid_report_descriptor_hex"] = interface_read_no_claim(
+                                device, 0x06, 0x2200, interface.bInterfaceNumber, size).hex()
                     except Exception as exc:
                         item["hid_error"] = str(exc)
                 interfaces.append(item)
@@ -83,7 +106,12 @@ def main():
         parser.error("VID/PID must be 16-bit hexadecimal")
     try:
         import usb.core
-        devices = list(usb.core.find(find_all=True, idVendor=args.vid, idProduct=args.pid))
+        try:
+            import libusb_package
+            backend = libusb_package.get_libusb1_backend()
+        except ImportError:
+            backend = None
+        devices = list(usb.core.find(find_all=True, idVendor=args.vid, idProduct=args.pid, backend=backend))
         result = {"schema": "adapt.usb.descriptors.v1", "captured_at_utc": datetime.now(timezone.utc).isoformat(),
                   "devices": [inspect(device, args.hid) for device in devices],
                   "limitations": ["Standard descriptor reads only; existing Windows driver may deny access.",
