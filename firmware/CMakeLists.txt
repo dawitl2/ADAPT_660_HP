@@ -52,4 +52,6 @@ find_package(Python3 COMPONENTS Interpreter QUIET)
 if(Python3_FOUND)
   add_test(NAME simulator COMMAND ${Python3_EXECUTABLE}
     ${CMAKE_CURRENT_SOURCE_DIR}/simulator/test_simulator.py $<TARGET_FILE:adapt_sim>)
+  add_test(NAME simulator_phase2 COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_CURRENT_SOURCE_DIR}/simulator/test_phase2.py $<TARGET_FILE:adapt_sim>)
 endif()
