@@ -1,0 +1,29 @@
+name: Host validation
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  host:
+    strategy:
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Configure
+        run: cmake -S firmware -B build -DCMAKE_BUILD_TYPE=Release
+      - name: Build
+        run: cmake --build build --config Release
+      - name: Firmware, protocol and simulator tests
+        run: ctest --test-dir build -C Release --output-on-failure
+      - name: Offline research tool tests
+        run: python -m unittest discover -s tools/tests -v
+      - name: Windows inventory smoke test
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: ./tools/usb/inventory.ps1 -Output research/ci-usb.json

@@ -22,3 +22,8 @@ Visual Studio: omit generator; pass `--config Debug` to build/test.
 Linux/macOS: omit generator and use `build/adapt_sim`.
 See [project](docs/PROJECT.md), [protocol](docs/protocol.md),
 [assumptions](docs/firmware/assumptions.md), [research](docs/firmware/reverse-engineering.md).
+
+`help` lists simulator commands. [Simulator usage](firmware/simulator/README.md)
+and [research toolkit](tools/README.md) include repeatable examples and limitations.
+Windows/Linux CI runs CMake/CTest and offline Python tests. All embedded addresses,
+firmware images and restore procedures remain unverified; host outputs are simulation.
