@@ -2,6 +2,7 @@
 #include "adapt/config.hpp"
 #include <fstream>
 #include <cstdio>
+#include <string>
 #ifdef _WIN32
 #ifndef NOMINMAX
 #define NOMINMAX

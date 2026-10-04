@@ -1,6 +1,7 @@
 #pragma once
 #include "adapt/hal.hpp"
 #include <filesystem>
+#include <utility>
 namespace adapt::host {
 // Host-only single-writer store. Does not perform physical NVM operations.
 class FileSettings : public hal::PersistentSettings {
