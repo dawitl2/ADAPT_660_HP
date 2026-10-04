@@ -87,8 +87,8 @@ import dev.adapt.control.feature.actions.*
         }
         Column(Modifier.fillMaxWidth().padding(top=10.dp,bottom=18.dp),horizontalAlignment=Alignment.CenterHorizontally) {
             HeadsetHero()
-            Icon(if(device.battery==null) Icons.Outlined.BatteryUnknown else Icons.Outlined.BatteryFull,
-                "Headset battery",modifier=Modifier.size(26.dp),tint=if(device.battery==null) MaterialTheme.colorScheme.onSurfaceVariant else Color(0xff34c759))
+            BatteryIndicator(device.battery)
+            Spacer(Modifier.height(5.dp))
             Text(device.battery?.let { "$it%" } ?: "—",fontSize=22.sp,color=MaterialTheme.colorScheme.onSurface)
         }
         Group(Modifier.clickable { navigate("device") }) { DetailRow("Name","ADAPT 660",click={navigate("device")}) }
@@ -192,7 +192,15 @@ import dev.adapt.control.feature.actions.*
 }
 @Composable fun SmallField(label: String,value: String,secret: Boolean=false,onSave: (String) -> Unit) {
     var text by remember(value) { mutableStateOf(value) }
-    OutlinedTextField(text,{ text=it },label={ Text(label) },singleLine=true,shape=RoundedCornerShape(18.dp),modifier=Modifier.fillMaxWidth(),
-        visualTransformation=if(secret) androidx.compose.ui.text.input.PasswordVisualTransformation() else androidx.compose.ui.text.input.VisualTransformation.None,
-        trailingIcon={ if(text!=value) IconButton(onClick={ onSave(text) }) { Icon(Icons.Outlined.Check,"Save $label") } })
+    val focus=LocalFocusManager.current
+    Row(Modifier.fillMaxWidth().heightIn(min=48.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(12.dp)) {
+        Text(label,Modifier.weight(1f),style=MaterialTheme.typography.bodyLarge)
+        androidx.compose.foundation.text.BasicTextField(text,{text=it},modifier=Modifier.weight(1.15f),singleLine=true,
+            textStyle=MaterialTheme.typography.bodyMedium.copy(color=MaterialTheme.colorScheme.onSurfaceVariant,textAlign=androidx.compose.ui.text.style.TextAlign.End),
+            visualTransformation=if(secret) androidx.compose.ui.text.input.PasswordVisualTransformation() else androidx.compose.ui.text.input.VisualTransformation.None,
+            keyboardOptions=androidx.compose.foundation.text.KeyboardOptions(imeAction=androidx.compose.ui.text.input.ImeAction.Done),
+            keyboardActions=androidx.compose.foundation.text.KeyboardActions(onDone={onSave(text);focus.clearFocus()}),
+            decorationBox={ inner -> Box(contentAlignment=Alignment.CenterEnd) { if(text.isEmpty()) Text("Not set",style=MaterialTheme.typography.bodyMedium,color=MaterialTheme.colorScheme.onSurfaceVariant); inner() } })
+        if(text!=value) IconButton(onClick={onSave(text);focus.clearFocus()}) { Icon(Icons.Outlined.Check,"Save $label",tint=MaterialTheme.colorScheme.primary) }
+    }
 }

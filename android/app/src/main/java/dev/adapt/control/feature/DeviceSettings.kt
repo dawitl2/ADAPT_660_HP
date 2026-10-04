@@ -28,7 +28,7 @@ import kotlinx.coroutines.delay
     var advanced by remember { mutableStateOf(false) }
     var region by remember { mutableStateOf("Purple button") }
     Page("Your headset","Every control, thoughtfully connected.") {
-        HeadsetHero(highlight=region,onRegion={region=it})
+        HeadsetHero()
         Row(Modifier.horizontalScroll(rememberScrollState()),horizontalArrangement=Arrangement.spacedBy(8.dp)) {
             listOf("Purple button","Touch surface","ANC switch","Bluetooth control","USB","Audio jack").forEach { label ->
                 FilterChip(region==label,{ region=label },{ Text(label) })
@@ -135,7 +135,7 @@ import kotlinx.coroutines.delay
     PageContent(modifier) {
         Text("ADAPT / CONTROL",style=MaterialTheme.typography.labelMedium,letterSpacing=2.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)
         Spacer(Modifier.height(12.dp))
-        HeadsetHero(highlight="Purple button")
+        HeadsetHero()
         Text("Your headset.\nYour possibilities.",style=MaterialTheme.typography.headlineLarge)
         Text("A thoughtful home for your sound, your ideas and everything that comes next.",style=MaterialTheme.typography.bodyLarge,color=MaterialTheme.colorScheme.onSurfaceVariant)
         Group {

@@ -75,3 +75,11 @@ val Purple=Color(0xff7956d6)
         }
     }
 }
+@Composable fun BatteryIndicator(level: Int?) {
+    val outline=MaterialTheme.colorScheme.onSurfaceVariant
+    androidx.compose.foundation.Canvas(Modifier.width(25.dp).height(12.dp)) {
+        drawRoundRect(outline.copy(alpha=.5f),size=androidx.compose.ui.geometry.Size(size.width-3.dp.toPx(),size.height),cornerRadius=androidx.compose.ui.geometry.CornerRadius(3.dp.toPx()),style=androidx.compose.ui.graphics.drawscope.Stroke(1.dp.toPx()))
+        drawRoundRect(outline.copy(alpha=.5f),topLeft=androidx.compose.ui.geometry.Offset(size.width-2.dp.toPx(),size.height*.3f),size=androidx.compose.ui.geometry.Size(2.dp.toPx(),size.height*.4f),cornerRadius=androidx.compose.ui.geometry.CornerRadius(1.dp.toPx()))
+        if(level!=null && level>0) drawRoundRect(if(level<=20) Color(0xffff3b30) else Color(0xff34c759),topLeft=androidx.compose.ui.geometry.Offset(2.dp.toPx(),2.dp.toPx()),size=androidx.compose.ui.geometry.Size((size.width-7.dp.toPx())*level.coerceIn(0,100)/100f,size.height-4.dp.toPx()),cornerRadius=androidx.compose.ui.geometry.CornerRadius(1.dp.toPx()))
+    }
+}
