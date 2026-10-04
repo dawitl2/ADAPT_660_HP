@@ -18,7 +18,7 @@ class MainActivity : ComponentActivity() {
     private val graph get()=(application as AdaptApplication).graph
     private var afterPermission: (() -> Unit)?=null
     private val permissions=registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { result ->
-        if(result.values.all { it }) afterPermission?.invoke() else graph.message.value="Permission declined. Enable it when you want this feature."
+        if(result.filterKeys { it!=Manifest.permission.POST_NOTIFICATIONS }.values.all { it }) afterPermission?.invoke() else graph.message.value="Permission declined. Enable it when you want this feature."
         afterPermission=null
     }
     private val association=registerForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) {
@@ -32,7 +32,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent { AppUi(graph,
-            arm={ ask(listOf(Manifest.permission.RECORD_AUDIO)+if(Build.VERSION.SDK_INT>=33) listOf(Manifest.permission.POST_NOTIFICATIONS) else emptyList()) { graph.arm() } },
+            arm={ ask(listOf(Manifest.permission.RECORD_AUDIO)+(if(Build.VERSION.SDK_INT>=31) listOf(Manifest.permission.BLUETOOTH_CONNECT) else emptyList())+(if(Build.VERSION.SDK_INT>=33) listOf(Manifest.permission.POST_NOTIFICATIONS) else emptyList())) { graph.arm() } },
             associate={ ask(if(Build.VERSION.SDK_INT>=31) listOf(Manifest.permission.BLUETOOTH_CONNECT,Manifest.permission.BLUETOOTH_SCAN) else emptyList()) {
                 runCatching { associateHeadset(this,{ association.launch(IntentSenderRequest.Builder(it).build()) },{ graph.message.value=it }) }
                     .onFailure { graph.message.value="Companion association could not start" }

@@ -37,15 +37,14 @@ class NoteRecorder(private val context: Context,private val route: AudioRoute,pr
             try {
                 RandomAccessFile(file,"rw").use { output ->
                     output.write(ByteArray(44)); rec.startRecording(); val b=ByteArray(2048)
-                    while(isActive && count<16000*2*120) {
+                    try { while(isActive && count<16000*2*120) {
                         val n=rec.read(b,0,b.size,AudioRecord.READ_BLOCKING); check(n>0)
                         output.write(b,0,n); count+=n
                         val level=waveform(b,n)
                         if(level>.025f) { speech=true; quiet=0 } else quiet+=n
                         draft.value=draft.value.copy(level=level,durationMs=count*1000L/32000)
                         if((speech && quiet>=32000*2) || (!speech && count>=32000*15)) break
-                    }
-                    output.seek(0); output.write(wavHeader(count))
+                    } } finally { output.seek(0); output.write(wavHeader(count)) }
                 }
                 endedNormally=true
             } catch(e: Exception) { if(e !is CancellationException) draft.value=draft.value.copy(message="Recording ended; check microphone access") }

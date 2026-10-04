@@ -25,7 +25,7 @@ class AdaptApplication : Application() {
     lateinit var graph: AppGraph
     override fun onCreate() {
         super.onCreate()
-        if(FirebaseApp.getApps(this).isNotEmpty()) FirebaseAppCheck.getInstance().installAppCheckProviderFactory(PlayIntegrityAppCheckProviderFactory.getInstance())
+        if(FirebaseApp.getApps(this).isNotEmpty()) configureAppCheck()
         graph=AppGraph(this)
     }
 }
@@ -43,15 +43,16 @@ class AppGraph(val context: Context) {
     val events=MutableStateFlow<List<String>>(emptyList())
     val transcripts=MutableStateFlow<List<Transcript>>(emptyList())
     val study=MutableStateFlow(StudyProgress())
-    val route=AudioRoute(context) { reason -> scope.launch { stopSession(); message.value=reason } }
+    val route: AudioRoute=AudioRoute(context) { reason -> scope.launch { stopSession(); notes.stop(); message.value=reason } }
     val gemini=GeminiLiveProvider(context,route,scope,{ preferences.value.model },{ allowPhone.value })
     val system=SystemAssistantProvider(context)
     val pc=PcActionProvider(vault)
     val phone=PhoneActionProvider(context,{ preferences.value },{ visible })
     val transport=SimulatorTransport({ vault.get("bridge_token") },scope)
     val router=ButtonRouter { action -> if(armed.value) execute(action,true) else message.value="Enable hands-free mode while ADAPT Control is open" }
-    val notes=NoteRecorder(context,route,scope) { auto -> if(auto) saveNote() }
+    val notes: NoteRecorder=NoteRecorder(context,route,scope) { auto -> if(auto) saveNote() }
     private val actions=Mutex()
+    private val noteSaving=Mutex()
     private var sessionTimeout: Job?=null
     private var playback: MediaPlayer?=null
     private var sessionStarted=0L
@@ -67,22 +68,16 @@ class AppGraph(val context: Context) {
             }
         } }
         scope.launch {
-            transport.state.map { it.connected }.distinctUntilChanged().collect { connected ->
+            transport.state.map { it.connected && it.radioLink != 1 }.distinctUntilChanged().collect { connected ->
                 router.newConnection(); event(if(connected) "CONNECTED · simulator" else "DISCONNECTED · control transport")
-                if(!connected && sessionStarted!=0L) stopSession()
+                if(!connected) { if(sessionStarted!=0L) stopSession(); notes.stop() }
             }
         }
         scope.launch { gemini.transcript.collect { line ->
             transcripts.value=(transcripts.value+line).takeLast(500)
-            if(study.value.active && line.speaker=="Gemini") {
-                modelTurn+=line.text
-                // Reparse the cumulative turn only when a full closing tag arrives, using a stable turn baseline below.
-            }
         } }
+        scope.launch { gemini.turns.collect { text -> if(study.value.active) study.value=StudyRules.parse(study.value,text) } }
         scope.launch { gemini.status.map { it.state }.distinctUntilChanged().collect { state ->
-            if(study.value.active && state==VoiceState.Listening && modelTurn.isNotEmpty()) {
-                study.value=StudyRules.parse(study.value,modelTurn); modelTurn=""
-            }
             if(state==VoiceState.Error) { sessionTimeout?.cancel(); message.value=gemini.status.value.error }
         } }
     }
@@ -133,7 +128,7 @@ class AppGraph(val context: Context) {
         if(gemini.status.value.state==VoiceState.Error) { study.value=study.value.copy(active=false); return }
         sessionStarted=System.currentTimeMillis()
         repository.log(if(studyMode) "Study — ${prefs.topic}" else "Gemini session started")
-        sessionTimeout=scope.launch { delay(15*60*1000); stopSession(); message.value="Session ended after 15 minutes. Press again to continue." }
+        sessionTimeout=scope.launch { delay(15*60*1000); withContext(NonCancellable) { stopSession(); message.value="Session ended after 15 minutes. Press again to continue." } }
     }
     suspend fun stopSession() {
         sessionTimeout?.cancel(); sessionTimeout=null
@@ -147,7 +142,7 @@ class AppGraph(val context: Context) {
         if(sessionStarted!=0L) repository.log("${if(study.value.active) "Study" else "Gemini"} session — ${(System.currentTimeMillis()-sessionStarted)/1000}s")
         sessionStarted=0; study.value=study.value.copy(active=false); modelTurn=""
     }
-    suspend fun saveNote() {
+    suspend fun saveNote(): Unit = noteSaving.withLock {
         if(notes.draft.value.recording) notes.stop()
         val d=notes.draft.value
         require(d.audioPath!=null || d.transcript.isNotBlank()) { "Record or type a note first" }

@@ -13,7 +13,8 @@ import java.nio.ByteBuffer
 import java.nio.ByteOrder
 
 data class DeviceState(val connected: Boolean = false, val battery: Int? = null,
-    val anc: Int = 0, val firmware: String = "Unknown", val transport: String = "Disconnected", val error: String? = null)
+    val anc: Int = 0, val firmware: String = "Unknown", val transport: String = "Disconnected", val error: String? = null,
+    val radioLink: Int = 0)
 interface DeviceTransport {
     val state: StateFlow<DeviceState>
     val frames: SharedFlow<Frame>
@@ -68,7 +69,7 @@ class SimulatorTransport(private val token: () -> String, private val scope: Cor
                                 if(f.type == 3 && f.flags == 1) {
                                     val p = f.payload
                                     _state.value = _state.value.copy(battery=(p[0].toInt() and 255).takeIf { it <= 100 },
-                                        anc=p[2].toInt(), firmware=p.copyOfRange(8,24).toString(Charsets.US_ASCII).trimEnd('\u0000'))
+                                        anc=p[2].toInt(), radioLink=p[3].toInt(), firmware=p.copyOfRange(8,24).toString(Charsets.US_ASCII).trimEnd('\u0000'))
                                 }
                                 _frames.emit(f)
                             }

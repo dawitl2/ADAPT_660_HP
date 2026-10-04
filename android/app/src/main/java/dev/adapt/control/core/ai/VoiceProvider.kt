@@ -34,8 +34,11 @@ class GeminiLiveProvider(private val context: Context,private val route: AudioRo
     private var job: Job?=null
     private var record: AudioRecord?=null
     private var playback: AudioTrack?=null
+    private var generation=0
+    val turns=MutableSharedFlow<String>(extraBufferCapacity=32)
     override suspend fun start(instruction: String) {
         end()
+        val currentGeneration=++generation
         _status.value=VoiceStatus(VoiceState.Connecting)
         try {
             require(FirebaseApp.getApps(context).isNotEmpty()) { "Gemini needs local Firebase AI Logic configuration. Command transport and local notes need no database." }
@@ -44,7 +47,9 @@ class GeminiLiveProvider(private val context: Context,private val route: AudioRo
                 responseModality=ResponseModality.AUDIO
                 inputAudioTranscription=AudioTranscriptionConfig(); outputAudioTranscription=AudioTranscriptionConfig()
             },systemInstruction=content { text(instruction.ifEmpty { "You are a concise, helpful voice assistant for ADAPT Control. Never claim to execute phone or PC actions." }) })
-            val connected=withTimeout(25000) { live.connect() }; session=connected
+            val connected=withTimeout(25000) { live.connect() }
+            if(currentGeneration!=generation) { connected.close(); return }
+            session=connected
             val rec=recorder(route); record=rec
             val track=AudioTrack.Builder().setAudioAttributes(AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_VOICE_COMMUNICATION).setContentType(AudioAttributes.CONTENT_TYPE_SPEECH).build())
                 .setAudioFormat(AudioFormat.Builder().setEncoding(AudioFormat.ENCODING_PCM_16BIT).setSampleRate(24000).setChannelMask(AudioFormat.CHANNEL_OUT_MONO).build())
@@ -62,8 +67,7 @@ class GeminiLiveProvider(private val context: Context,private val route: AudioRo
                                     val n=track.write(chunk,offset,chunk.size-offset,AudioTrack.WRITE_BLOCKING)
                                     check(n>0) { "Audio playback failed" }; offset+=n
                                 }
-                                val expected=track.playbackHeadPosition+chunk.size/2
-                                // The next chunks are queued; listening state is settled by the server turn marker.
+                                // Playback is streamed, and the server turn marker settles listening state.
                             }
                         }
                         launch(Dispatchers.IO) {
@@ -77,14 +81,15 @@ class GeminiLiveProvider(private val context: Context,private val route: AudioRo
                                 connected.sendAudioRealtime(InlineData(bytes.copyOf(n),"audio/pcm;rate=16000"))
                             }
                         }
+                        var modelText=""
                         connected.receive().collect { message ->
                             when(message) {
                                 is LiveServerContent -> {
                                     message.inputTranscription?.text?.let { _transcript.emit(Transcript("You",it)) }
-                                    message.outputTranscription?.text?.let { _transcript.emit(Transcript("Gemini",it)) }
-                                    if(message.interrupted) { track.pause(); track.flush(); track.play(); while(audio.tryReceive().isSuccess) {} }
+                                    message.outputTranscription?.text?.let { modelText+=it; _transcript.emit(Transcript("Gemini",it)) }
+                                    if(message.interrupted) { modelText=""; track.pause(); track.flush(); track.play(); while(audio.tryReceive().isSuccess) {} }
                                     for(part in message.content?.parts.orEmpty().filterIsInstance<InlineDataPart>()) if(part.mimeType.startsWith("audio/pcm")) audio.send(part.inlineData)
-                                    if(message.turnComplete) _status.value=_status.value.copy(state=VoiceState.Listening)
+                                    if(message.turnComplete) { turns.emit(modelText); modelText=""; _status.value=_status.value.copy(state=VoiceState.Listening) }
                                 }
                                 is LiveServerGoAway -> error("Gemini session is ending. Reconnect to continue.")
                             }
@@ -106,7 +111,7 @@ class GeminiLiveProvider(private val context: Context,private val route: AudioRo
         withContext(NonCancellable) { runCatching { session?.close() } }; session=null
         route.release()
     }
-    override suspend fun end() { job?.cancelAndJoin(); job=null; cleanup(); _status.value=VoiceStatus() }
+    override suspend fun end() { generation++; record?.let { runCatching { it.stop() } }; job?.cancelAndJoin(); job=null; cleanup(); _status.value=VoiceStatus() }
 }
 
 /** Android chooses the installed assistant. No package spoofing or coordinate automation. */
