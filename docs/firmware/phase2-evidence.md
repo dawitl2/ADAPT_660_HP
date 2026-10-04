@@ -33,6 +33,25 @@ Primary sources reviewed:
   verification lead**, not confirmed hardware identity. No third-party chipset
   assertion or unsolicited internal board photograph is used.
 
+## Fresh local evidence
+
+Present-only inventory `research/usb-phase2.json` captured 110 records. Seven
+headset-named records include Windows A2DP, HFP and AVRCP endpoints plus
+`LE-EPOS ADAPT 660`. Their signed Microsoft drivers establish **CONFIRMED OS
+enumeration**, not measured streaming or a confirmed live link. No direct-headset
+USB identity was present. Bluetooth PnP vendor/product fields are not USB VID/PID
+and do not identify the radio silicon. Addresses remain private and uncommitted.
+
+A bounded scan for the observed LE identity found no advertising device.
+`research/ble-phase2.json` therefore records **UNKNOWN** GATT service details;
+no connection or application write occurred. Stock LE support is suggested by OS
+enumeration; concurrent custom control with audio remains unverified.
+
+Repeated standard-root package search returned one repository metadata JSON and
+100 retained access errors, again no usable legitimate firmware package. Synthetic
+ZIPs from Phase 1 cannot satisfy the original-image requirement. These findings
+supersede the earlier no-headset inventory only for the current Windows snapshot.
+
 No known-good stock image, SHA-256, bootloader behavior or tested restoration
 procedure is available. Hardware writes remain blocked. Next useful evidence:
 exact article/regulatory label, direct-headset USB inventory/descriptors with the
