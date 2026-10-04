@@ -3,7 +3,7 @@
 namespace adapt {
 bool ButtonTiming::valid() const {
     return debounce_ms > 0 && debounce_ms < short_max_ms &&
-        double_window_ms >= debounce_ms && short_max_ms < long_ms &&
+        double_window_ms >= debounce_ms && double_window_ms <= 60000 && short_max_ms < long_ms &&
         long_ms < very_long_ms && very_long_ms <= 60000;
 }
 Button::Button(ButtonSink& sink, ButtonTiming timing) : sink_(sink), timing_(timing) {

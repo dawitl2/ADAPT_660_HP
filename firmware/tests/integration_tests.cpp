@@ -29,6 +29,12 @@ int main() {
       CHECK(f.request(ACP_LIFECYCLE_STATE).payload[1]==0);
       f.h.wake=true; f.tick(); CHECK(f.c.lifecycle()==LifecycleState::Booting);
       f.tick(); CHECK(f.h.restart_count==1); f.tick(); CHECK(f.c.lifecycle()==LifecycleState::Connecting); }
+    { Fixture f; f.tick(); f.h.wireless_ok=false; f.h.jack=true; f.tick(); f.tick();
+      CHECK(f.c.state().mode==Mode::ToAnalog && f.c.lifecycle()==LifecycleState::Recovery);
+      f.tick(500); f.tick(1000); CHECK(f.c.lifecycle()==LifecycleState::Error);
+      const auto count=f.c.diagnostics().size(); f.tick(10000); CHECK(f.c.diagnostics().size()==count);
+      f.h.wireless_ok=true; f.h.jack=false; f.tick(); f.tick(); f.tick();
+      CHECK(f.c.state().mode==Mode::Wireless); }
     { Fixture f; f.tick(); f.h.responsive=false; f.h.recovery_ok=false; f.tick(); f.tick(2000);
       CHECK(f.h.restart_count==1); f.tick(499); CHECK(f.h.restart_count==1);
       f.tick(); CHECK(f.h.restart_count==2); f.tick(1000); CHECK(f.h.restart_count==3);

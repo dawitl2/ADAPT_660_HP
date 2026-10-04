@@ -9,6 +9,7 @@ struct LifecycleInput {
     bool powered=true, awake=true, analog=false, usb_audio=false;
     bool pairable=false, connecting=false, audio=false, call=false;
     bool radio_available=true, responsive=true;
+    bool mode_transition=false, transition_failed=false;
     uint8_t peers=0, active_peer=255, max_peers=1;
 };
 struct RecoveryPolicy {

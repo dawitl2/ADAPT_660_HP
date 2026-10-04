@@ -11,6 +11,11 @@ Sleep/power-off cancels pending recovery; wake traverses BOOTING. Analog inserti
 cancels radio recovery and requests radio disable through the existing mode HAL.
 Removal requests a wireless-only restart, then ordinary vendor reconnection.
 No policy code implements pairing cryptography, an audio profile or a radio stack.
+Analog disable also has at most three attempts with 500/1000 ms delays. Until
+disable succeeds, the core reports the to-analog mode and RECOVERY, not an established
+analog state. Exhaustion reports ERROR. A new jack transition/wake starts a fresh
+bounded cycle. Peer selection and restart-attempt changes notify even when the
+high-level lifecycle state stays the same.
 
 The HAL must provide a meaningful nonblocking responsiveness/connection-attempt
 observation. An unresponsive stack for 2000 ms, or a connection attempt stalled

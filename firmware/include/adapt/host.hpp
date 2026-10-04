@@ -21,6 +21,7 @@ struct Backend : hal::ButtonInput, hal::TouchSurface, hal::BluetoothAudio,
     uint64_t time=0;
     bool down=false, jack=false, wireless_enabled=true, stored=false, save_ok=true;
     bool recovery_ok=true, anc_ok=true, pairing_ok=true, allow_boot=false, boot_pending=false;
+    bool wireless_ok=true;
     hal::BootRequest boot_kind=hal::BootRequest::Reboot;
     Link link=Link::Disconnected;
     Activity audio=Activity::Inactive, microphone=Activity::Inactive, speaker=Activity::Inactive, wear=Activity::Unknown;
@@ -75,12 +76,14 @@ struct Backend : hal::ButtonInput, hal::TouchSurface, hal::BluetoothAudio,
     Activity audio_state() const override { return audio; }
     bool pair() override { if (!pairing_ok || !wireless_enabled) return false; link=Link::Pairing; return true; }
     bool wireless(bool enabled) override {
+        if (!wireless_ok) return false;
         wireless_enabled=enabled;
         if (!enabled) { link=Link::Disconnected; peers=0; active_peer=255; connecting=call=false; audio=microphone=speaker=Activity::Inactive; }
         return true;
     }
     bool recover_wireless() override { ++restart_count; if (!recovery_ok) return false;
-        wireless(false); wireless(true); responsive=true; return true; }
+        if (!wireless(false) || !wireless(true)) return false;
+        responsive=true; return true; }
     Anc anc_state() const override { return anc; }
     bool set_anc(Anc value) override { if (!anc_ok) return false; anc=value; return true; }
     Activity microphone_state() const override { return microphone; }

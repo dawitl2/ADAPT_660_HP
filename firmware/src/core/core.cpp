@@ -59,27 +59,34 @@ void Core::tick() {
     if (!last_running_) {
         last_running_=true; button_.reset(now); lifecycle_.request_recovery(now);
         if (!p_.jack.jack_inserted()) transition(Mode::WirelessRecovery);
+        else { disable_attempts_=0; next_disable_=now; transition(Mode::ToAnalog); }
     }
     button_.sample(p_.button.purple_down(),now);
     touch();
     const bool jack=p_.jack.jack_inserted();
     if (jack) pair_after_recovery_=false;
     if (jack!=last_jack_) {
+        disable_attempts_=0; next_disable_=now;
         last_jack_=jack; log(jack ? 14 : 15,0); transition(jack ? Mode::ToAnalog : Mode::ToWireless);
         return;
     }
     const bool defer_restart=mode_==Mode::ToWireless;
     switch(mode_) {
     case Mode::ToAnalog:
-        if (p_.audio.wireless(false)) transition(Mode::Analog);
-        else log(6,static_cast<uint32_t>(mode_));
+        if (disable_attempts_<3 && now>=next_disable_) {
+            ++disable_attempts_;
+            if (p_.audio.wireless(false)) transition(Mode::Analog);
+            else { log(6,static_cast<uint32_t>(mode_)); next_disable_=now+500u*disable_attempts_; }
+        }
         break;
     case Mode::ToWireless: transition(Mode::WirelessRecovery); lifecycle_.request_recovery(now); break;
     default: break;
     }
     const auto radio=p_.audio.radio_status();
     lifecycle_input_.powered=true; lifecycle_input_.awake=true;
-    lifecycle_input_.analog=jack;
+    lifecycle_input_.analog=jack && mode_==Mode::Analog;
+    lifecycle_input_.mode_transition=mode_==Mode::ToAnalog;
+    lifecycle_input_.transition_failed=mode_==Mode::ToAnalog && disable_attempts_>=3;
     lifecycle_input_.usb_audio=p_.runtime && p_.runtime->usb_audio_active();
     lifecycle_input_.radio_available=radio.available || p_.audio.link_state()!=Link::Unknown;
     lifecycle_input_.responsive=radio.available ? radio.responsive : true;
@@ -109,7 +116,10 @@ void Core::tick() {
         log(lifecycle_input_.peers>last_peers_ ? 11 : 12,lifecycle_input_.peers);
         last_peers_=lifecycle_input_.peers;
     }
-    if (lifecycle_.state()!=last_lifecycle_ || peers_changed) {
+    const bool detail_changed=lifecycle_input_.active_peer!=last_active_peer_ || lifecycle_.attempts()!=last_attempts_ ||
+        lifecycle_input_.max_peers!=last_max_peers_;
+    last_active_peer_=lifecycle_input_.active_peer; last_attempts_=lifecycle_.attempts(); last_max_peers_=lifecycle_input_.max_peers;
+    if (lifecycle_.state()!=last_lifecycle_ || peers_changed || detail_changed) {
         last_lifecycle_=lifecycle_.state(); log(20,static_cast<uint32_t>(last_lifecycle_));
         if (capabilities_ & ACP_CAP_LIFECYCLE) { acp_message m{}; m.type=ACP_LIFECYCLE_STATE; lifecycle_payload(m); event(m); }
     }
@@ -293,7 +303,7 @@ void Core::receive(const uint8_t* frame, size_t size, hal::ControlTransport& sou
     }
     case ACP_ENTER_PAIRING:
         if (!p_.audio.pair()) { fail(ACP_ERR_HAL); return; }
-        log(2,0); break;
+        p_.feedback.signal(13); log(2,0); break;
     case ACP_REQUEST_REBOOT: case ACP_REQUEST_BOOTLOADER: {
         const auto request=m.type==ACP_REQUEST_REBOOT ? hal::BootRequest::Reboot : hal::BootRequest::Bootloader;
         if (!p_.boot.permitted(request)) { fail(ACP_ERR_DENIED); return; }

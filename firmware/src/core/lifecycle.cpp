@@ -22,6 +22,8 @@ bool Lifecycle::tick(const LifecycleInput& i, uint64_t now) {
     if (!running_ || first_) {
         running_=true; first_=false; state_=LifecycleState::Booting; return false;
     }
+    if (i.transition_failed) { pending_=false; state_=LifecycleState::Error; return false; }
+    if (i.mode_transition) { pending_=unhealthy_=connecting_=false; state_=LifecycleState::Recovery; return false; }
     if (i.analog) {
         state_=LifecycleState::AnalogMode; pending_=failed_=unhealthy_=connecting_=false;
         attempts_=0; return false;

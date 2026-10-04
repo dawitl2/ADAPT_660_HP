@@ -44,5 +44,7 @@ int main() {
       CHECK(f.button.sample(false, 801)); CHECK(f.button.configure({})); }
     { Fixture f; f.level(true, 100); f.button.reset(200); CHECK(f.button.sample(false, 201)); CHECK(f.sink.events.empty()); }
     { Fixture f; const uint64_t base = 0x100000000ULL; f.press(base, 100); f.settle(); CHECK(f.sink.events == std::vector<Gesture>{Gesture::Short}); }
+    { ButtonTiming timing; timing.double_window_ms=60000; CHECK(timing.valid());
+      timing.double_window_ms=60001; CHECK(!timing.valid()); timing.double_window_ms=UINT32_MAX; CHECK(!timing.valid()); }
     std::cout << "button timing, bounce, rapid presses and configuration cases passed\n";
 }

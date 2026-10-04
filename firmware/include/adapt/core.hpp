@@ -24,6 +24,8 @@ private:
     LifecycleInput lifecycle_input_{};
     LifecycleState last_lifecycle_=LifecycleState::Booting;
     uint8_t last_peers_=0;
+    uint8_t last_active_peer_=255, last_attempts_=0, last_max_peers_=1, disable_attempts_=0;
+    uint64_t next_disable_=0;
     bool last_running_=true, pair_after_recovery_=false;
     Mode mode_ = Mode::Wireless;
     bool last_jack_ = false;

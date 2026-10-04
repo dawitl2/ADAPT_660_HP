@@ -7,6 +7,8 @@ preceding bytes. Schema 2 is 46 bytes. Payload offsets from the record start:
 39 confirmation boolean, 40 preferred action u16, 42 multipoint boolean, 43
 diagnostic level (0 off / 1 normal / 2 verbose). Only 0/1 boolean bytes accepted.
 CRC is corruption detection, not authentication. Generation wraps modulo u32.
+All gesture timing thresholds/windows are bounded to 60000 ms; an excessive
+double window cannot leave a single press waiting for days.
 
 Schema 1 is an explicit 41-byte legacy record with a 27-byte payload ending at
 ANC; it migrates by supplying defaults for new fields. It is a designed legacy
