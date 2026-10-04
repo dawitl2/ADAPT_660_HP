@@ -66,7 +66,7 @@ target_link_libraries(adapt_sim PRIVATE adapt_sim_platform)
 add_executable(target_adapt660_pending src/platform/target_adapt660_pending/main.cpp)
 target_link_libraries(target_adapt660_pending PRIVATE adapt_core)
 add_test(NAME pending_target COMMAND target_adapt660_pending)
-find_package(Python3 COMPONENTS Interpreter QUIET)
+find_package(Python3 3.11 COMPONENTS Interpreter QUIET)
 if(Python3_FOUND)
   add_test(NAME simulator COMMAND ${Python3_EXECUTABLE}
     ${CMAKE_CURRENT_SOURCE_DIR}/simulator/test_simulator.py $<TARGET_FILE:adapt_sim>)

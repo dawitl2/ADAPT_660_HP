@@ -20,10 +20,11 @@ stateDiagram-v2
 
 Transition states/logs exist for observation. HAL failure retains the transition;
 rapid reinsertion cancels recovery. Recovered host wireless is disconnected, not
-automatically connected. No reset register, power sequence or delay is asserted.
+automatically connected. No reset register or power sequence is asserted.
 To compare real behavior, record a normal jack insertion/removal with OS link/audio
 states and timestamps; do not disturb an update. Production retry cadence must be
-bounded/backed off; the simulator deliberately retries one step per virtual tick.
+bounded/backed off; Phase 2 now implements three attempts with delayed retries,
+followed by ERROR. See [custom lifecycle](lifecycle.md) for exact software defaults.
 
 ## Machine/package investigation (2026-10-04)
 
