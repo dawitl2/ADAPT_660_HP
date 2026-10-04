@@ -57,4 +57,7 @@ if(Python3_FOUND)
     ${CMAKE_CURRENT_SOURCE_DIR}/simulator/test_simulator.py $<TARGET_FILE:adapt_sim>)
   add_test(NAME simulator_phase2 COMMAND ${Python3_EXECUTABLE}
     ${CMAKE_CURRENT_SOURCE_DIR}/simulator/test_phase2.py $<TARGET_FILE:adapt_sim>)
+  add_test(NAME simulator_bridge COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_CURRENT_SOURCE_DIR}/simulator/test_bridge.py $<TARGET_FILE:adapt_sim>)
+  set_tests_properties(simulator simulator_phase2 simulator_bridge PROPERTIES TIMEOUT 60)
 endif()
