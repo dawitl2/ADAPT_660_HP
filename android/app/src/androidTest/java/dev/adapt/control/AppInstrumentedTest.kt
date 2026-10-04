@@ -39,7 +39,7 @@ class AppInstrumentedTest {
         compose.onNodeWithText("Voice Note").performClick()
         compose.waitUntil(5000) { graph.preferences.value.mappings[0]==2 }
         compose.onNodeWithText("Home").performClick()
-        compose.onNodeWithContentDescription("Voice Note").performClick()
+        compose.onNodeWithContentDescription("Voice Note").performScrollTo().performClick()
         compose.onNodeWithText("Your transcript or a typed note…").performTextInput("Instrumented local note")
         compose.onNodeWithText("Save note").performScrollTo().performClick()
         compose.waitUntil(5000) { graph.repository.notes.value.any { it.rawTranscript=="Instrumented local note" } }
