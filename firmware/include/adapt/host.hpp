@@ -1,0 +1,59 @@
+#pragma once
+#include "adapt/hal.hpp"
+#include <vector>
+
+namespace adapt::host {
+struct Transport : hal::ControlTransport {
+    bool trusted=true, connected=true;
+    std::vector<std::vector<uint8_t>> frames;
+    bool send(const uint8_t* data, size_t size) override {
+        if (!connected) return false;
+        frames.emplace_back(data,data+size); return true;
+    }
+    bool authorized() const override { return trusted; }
+};
+// Host-only synthetic state. No hardware IO or vendor commands.
+struct Backend : hal::ButtonInput, hal::TouchSurface, hal::BluetoothAudio,
+    hal::AncControl, hal::Microphones, hal::Speakers, hal::Battery, hal::Charger,
+    hal::AnalogJack, hal::WearSensor, hal::PersistentSettings, hal::Feedback,
+    hal::Clock, hal::BootRecovery {
+    Transport bt, usb;
+    uint64_t time=0;
+    bool down=false, jack=false, wireless_enabled=true, stored=false, save_ok=true;
+    bool recovery_ok=true, anc_ok=true, pairing_ok=true, allow_boot=false, boot_pending=false;
+    hal::BootRequest boot_kind=hal::BootRequest::Reboot;
+    Link link=Link::Disconnected;
+    Activity audio=Activity::Inactive, microphone=Activity::Inactive, speaker=Activity::Inactive, wear=Activity::Unknown;
+    uint8_t battery=80;
+    Charging charging=Charging::No;
+    Anc anc=Anc::On;
+    Settings persisted{};
+    std::vector<uint16_t> feedback;
+    hal::Platform platform() { return {*this,*this,bt,usb,*this,*this,*this,*this,*this,*this,*this,*this,*this,*this,*this,*this}; }
+    bool purple_down() const override { return down; }
+    hal::TouchSample touch() const override { return {}; }
+    Link link_state() const override { return link; }
+    Activity audio_state() const override { return audio; }
+    bool pair() override { if (!pairing_ok || !wireless_enabled) return false; link=Link::Pairing; return true; }
+    bool wireless(bool enabled) override {
+        wireless_enabled=enabled;
+        if (!enabled) { link=Link::Disconnected; audio=microphone=speaker=Activity::Inactive; }
+        return true;
+    }
+    bool recover_wireless() override { if (!recovery_ok) return false; wireless(true); link=Link::Disconnected; return true; }
+    Anc anc_state() const override { return anc; }
+    bool set_anc(Anc value) override { if (!anc_ok) return false; anc=value; return true; }
+    Activity microphone_state() const override { return microphone; }
+    Activity speaker_state() const override { return speaker; }
+    uint8_t battery_percent() const override { return battery; }
+    Charging charging_state() const override { return charging; }
+    bool jack_inserted() const override { return jack; }
+    Activity wear_state() const override { return wear; }
+    bool load(Settings& out) const override { if (!stored) return false; out=persisted; return true; }
+    bool save(const Settings& value) override { if (!save_ok) return false; persisted=value; stored=true; return true; }
+    void signal(uint16_t code) override { feedback.push_back(code); }
+    uint64_t now_ms() const override { return time; }
+    bool permitted(hal::BootRequest) const override { return allow_boot; }
+    bool request_boot(hal::BootRequest kind) override { if (!allow_boot) return false; boot_pending=true; boot_kind=kind; return true; }
+};
+}
