@@ -15,11 +15,11 @@ $devices = @(Get-PnpDevice -PresentOnly | Where-Object {
           'DEVPKEY_Device_BusReportedDeviceDesc','DEVPKEY_Device_Manufacturer',
           'DEVPKEY_Device_Parent','DEVPKEY_Device_LocationPaths','DEVPKEY_Device_Service') |
         ForEach-Object { $properties[$_.KeyName] = $_.Data }
-    $vid = $null; $pid = $null; $mi = $null
+    $deviceVid = $null; $devicePid = $null; $interfaceNumber = $null
     if ($device.InstanceId -match 'VID_([0-9A-F]{4}).*PID_([0-9A-F]{4})') {
-        $vid = $Matches[1]; $pid = $Matches[2]
+        $deviceVid = $Matches[1]; $devicePid = $Matches[2]
     }
-    if ($device.InstanceId -match '&MI_([0-9A-F]{2})') { $mi = $Matches[1] }
+    if ($device.InstanceId -match '&MI_([0-9A-F]{2})') { $interfaceNumber = $Matches[1] }
     $interfaceCodes = @($properties['DEVPKEY_Device_CompatibleIds'] | ForEach-Object {
         if ($_ -match 'Class_([0-9A-F]{2})&SubClass_([0-9A-F]{2})&Prot_([0-9A-F]{2})') {
             [ordered]@{ class = $Matches[1]; subclass = $Matches[2]; protocol = $Matches[3] }
@@ -28,7 +28,7 @@ $devices = @(Get-PnpDevice -PresentOnly | Where-Object {
     $driver = $driverMap[$device.InstanceId]
     [ordered]@{
         device_id = $device.InstanceId; name = $device.FriendlyName; status = $device.Status
-        pnp_class = $device.Class; vid = $vid; pid = $pid; interface_number = $mi
+        pnp_class = $device.Class; vid = $deviceVid; pid = $devicePid; interface_number = $interfaceNumber
         interface_codes = $interfaceCodes; properties = $properties
         driver = if ($driver) { [ordered]@{ name=$driver.DriverName; provider=$driver.DriverProviderName;
             version=$driver.DriverVersion; inf=$driver.InfName; signed=$driver.IsSigned } } else { $null }
