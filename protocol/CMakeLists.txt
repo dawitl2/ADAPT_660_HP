@@ -1,0 +1,6 @@
+add_library(adapt_protocol src/protocol.c)
+target_include_directories(adapt_protocol PUBLIC include)
+set_target_properties(adapt_protocol PROPERTIES C_STANDARD 99 C_STANDARD_REQUIRED YES)
+add_executable(protocol_tests tests/protocol_tests.cpp)
+target_link_libraries(protocol_tests PRIVATE adapt_protocol)
+add_test(NAME protocol COMMAND protocol_tests)
