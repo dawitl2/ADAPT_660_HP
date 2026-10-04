@@ -16,6 +16,7 @@ Core::Core(hal::Platform platform, uint32_t caps, const char* version)
     button_.reset(p_.clock.now_ms());
     last_tick_=p_.clock.now_ms();
     if (!p_.anc.set_anc(settings_.anc)) log(6,6);
+    if (p_.controls && (p_.controls->features() & 8) && !p_.controls->set_multipoint(settings_.multipoint)) log(6,9);
     if (settings_.diagnostic_level) diagnostics_.push(last_tick_,10,p_.runtime ? p_.runtime->boot_reason() : 0);
 }
 bool Core::send(acp_message m, hal::ControlTransport& t) {
@@ -60,6 +61,7 @@ void Core::tick() {
         if (!p_.jack.jack_inserted()) transition(Mode::WirelessRecovery);
     }
     button_.sample(p_.button.purple_down(),now);
+    touch();
     const bool jack=p_.jack.jack_inserted();
     if (jack) pair_after_recovery_=false;
     if (jack!=last_jack_) {
@@ -159,10 +161,40 @@ bool Core::setting(uint8_t key, uint32_t& value) const {
     case 8: value=static_cast<uint32_t>(settings_.preferred_action); break;
     case 9: value=settings_.multipoint ? 1 : 0; break;
     case 10: value=settings_.diagnostic_level; break;
+    case 11: if (!p_.controls) return false; value=p_.controls->volume(); break;
+    case 12: if (!p_.controls) return false; value=p_.controls->ambient() ? 1 : 0; break;
+    case 13: if (!p_.controls) return false; value=p_.controls->features(); break;
     case 16: case 17: case 18: value=static_cast<uint32_t>(settings_.mapping[key-16]); break;
     default: return false;
     }
     return true;
+}
+bool Core::standard_control(uint8_t op, uint16_t value, acp_error& result) {
+    result=ACP_ERR_INVALID;
+    if (op<1 || op>3 || (op==1 && value>100) || (op==2 && (value<1 || value>6)) || (op==3 && value>1)) return false;
+    result=ACP_ERR_UNSUPPORTED;
+    if (!p_.controls || !(p_.controls->features() & (1u << (op-1)))) return false;
+    result=ACP_ERR_HAL;
+    if (op==1) return p_.controls->set_volume(static_cast<uint8_t>(value));
+    if (op==2) return p_.controls->media(static_cast<hal::MediaCommand>(value));
+    return p_.controls->set_ambient(value!=0);
+}
+void Core::touch() {
+    if (!p_.controls) return;
+    const auto g=p_.controls->take_touch();
+    if (g==hal::TouchGesture::None) return;
+    const bool call=p_.audio.radio_status().call;
+    uint8_t op=2; uint16_t value=1;
+    switch(g) {
+    case hal::TouchGesture::Tap: value=call ? 5 : 1; break;
+    case hal::TouchGesture::DoubleTap: op=3; value=p_.controls->ambient() ? 0 : 1; break;
+    case hal::TouchGesture::SwipeUp: op=1; value=static_cast<uint16_t>(p_.controls->volume()+5); if (value>100) value=100; break;
+    case hal::TouchGesture::SwipeDown: op=1; value=p_.controls->volume()>=5 ? static_cast<uint16_t>(p_.controls->volume()-5) : 0; break;
+    case hal::TouchGesture::SwipeForward: value=2; break;
+    case hal::TouchGesture::SwipeBack: value=3; break;
+    default: return;
+    }
+    acp_error error_code; if (!standard_control(op,value,error_code)) log(6,static_cast<uint32_t>(error_code));
 }
 void Core::receive(const uint8_t* frame, size_t size, hal::ControlTransport& source) {
     acp_message m{};
@@ -170,10 +202,15 @@ void Core::receive(const uint8_t* frame, size_t size, hal::ControlTransport& sou
     if (m.flags!=0) { error(m.sequence,m.type,ACP_ERR_INVALID,source); return; }
     auto fail=[&](acp_error code) { error(m.sequence,m.type,code,source); };
     const bool write=m.type==ACP_SET_ACTION_MAPPING || m.type==ACP_SET_SETTING ||
-        m.type==ACP_ENTER_PAIRING || m.type==ACP_REQUEST_REBOOT || m.type==ACP_REQUEST_BOOTLOADER;
+        m.type==ACP_ENTER_PAIRING || m.type==ACP_REQUEST_REBOOT || m.type==ACP_REQUEST_BOOTLOADER || m.type==ACP_STANDARD_CONTROL;
     if (write && !source.authorized()) { fail(ACP_ERR_DENIED); return; }
     acp_message reply=m; reply.flags=ACP_RESPONSE;
     switch(m.type) {
+    case ACP_STANDARD_CONTROL: {
+        if (!(capabilities_ & ACP_CAP_STANDARD_CONTROL)) { fail(ACP_ERR_UNSUPPORTED); return; }
+        acp_error e; if (!standard_control(m.payload[0],acp_read16(m.payload+1),e)) { fail(e); return; }
+        break;
+    }
     case ACP_GET_DIAGNOSTIC: {
         if (!(capabilities_ & ACP_CAP_DIAGNOSTICS)) { fail(ACP_ERR_UNSUPPORTED); return; }
         if (!source.authorized()) { fail(ACP_ERR_DENIED); return; }
@@ -244,9 +281,12 @@ void Core::receive(const uint8_t* frame, size_t size, hal::ControlTransport& sou
         if (!next.valid()) { fail(ACP_ERR_INVALID); return; }
         if (key<=5 && !button_.configure(next.timing)) { fail(ACP_ERR_BUSY); return; }
         if (key==6 && !p_.anc.set_anc(next.anc)) { fail(ACP_ERR_HAL); return; }
+        const bool apply_multipoint=key==9 && p_.controls && (p_.controls->features() & 8);
+        if (apply_multipoint && !p_.controls->set_multipoint(next.multipoint)) { fail(ACP_ERR_HAL); return; }
         if (!p_.settings.save(next)) {
             if (key==6 && !p_.anc.set_anc(settings_.anc)) log(6,6);
             if (key<=5) button_.configure(settings_.timing);
+            if (apply_multipoint && !p_.controls->set_multipoint(settings_.multipoint)) log(6,9);
             fail(ACP_ERR_STORAGE); return;
         }
         settings_=next; if (key==6) log(17,value); break;

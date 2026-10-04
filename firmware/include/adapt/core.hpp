@@ -38,5 +38,7 @@ private:
     void error(uint16_t sequence, uint8_t type, acp_error code, hal::ControlTransport& source);
     bool setting(uint8_t key, uint32_t& value) const;
     void lifecycle_payload(acp_message& message) const;
+    bool standard_control(uint8_t operation, uint16_t value, acp_error& result);
+    void touch();
 };
 }

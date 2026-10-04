@@ -3,6 +3,7 @@
 Original frame layout, version bytes, message IDs 1–14, state length/offsets and
 error codes remain unchanged. HELLO is still 0.1. GET_CAPABILITIES advertises
 optional additions: bit5 retained diagnostics, bit6 lifecycle, bit7 metadata.
+Bit8 advertises typed standard controls.
 Clients must check bits before sending these requests. Old clients can continue
 using only their original messages. Unknown operations still fail closed.
 
@@ -11,6 +12,7 @@ using only their original messages. Unknown operations still fail closed.
 | 15 GET_DIAGNOSTIC | Request: newest-first index u8. Authorized response: count u8, serial u32, time_ms u64, code u16, value u32 (19 bytes). Missing index returns INVALID. |
 | 16 LIFECYCLE_STATE | Empty request; response or event: state u8, peers u8, active peer u8 (255 none), restart attempts u8, maximum peers u8. |
 | 17 FIRMWARE_METADATA | Empty request; response: product ASCII[32], firmware ASCII[24], protocol ASCII[24], config schema u16, physical target ready u8. Strings NUL-padded; host/pending ready=0. |
+| 18 STANDARD_CONTROL | Authorized request/echo response: operation u8, value u16. Operation1 volume 0–100; operation2 media/call enum 1 PlayPause, 2 Next, 3 Previous, 4 Answer, 5 End, 6 MuteToggle; operation3 ambient 0/1. Unsupported HAL returns UNSUPPORTED, execution failure HAL. |
 
 Retained log is a fixed 32-record volatile ring, overwritten oldest first, lost
 on reboot. Index zero is newest; live inserts can shift indices between reads.
@@ -23,6 +25,9 @@ New setting keys: 7 confirmation tones boolean, 8 preferred action u16 carried i
 u32, 9 multipoint preference boolean, 10 diagnostic level 0–2. Read-only keys
 16/17/18 return short/double/long mapping; changes still use SET_ACTION_MAPPING.
 Boolean inputs must be exactly 0 or 1. Very-long has no mapping key.
+Read-only keys11/12/13 return current volume, ambient flag and supported standard
+control bitmap (bits0 volume,1 media/call,2 ambient,3 multipoint). These volatile
+observations are not added to the persisted schema or original 26-byte state.
 
 Additional log codes: 10 boot reason, 11 connection created (peer count), 12
 connection lost (peer count), 13 wireless restart (success boolean), 14 jack

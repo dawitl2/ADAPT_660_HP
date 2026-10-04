@@ -37,7 +37,7 @@ int main(int argc, char** argv) {
     if (argc==3 && std::string(argv[1])=="--settings") {
         config_file=std::make_unique<host::FileSettings>(argv[2]); host.durable=config_file.get();
     } else if (argc!=1) { std::cerr << "Usage: adapt_sim [--settings PATH]\n"; return 2; }
-    auto core=std::make_unique<Core>(host.platform(),255,identity::version);
+    auto core=std::make_unique<Core>(host.platform(),511,identity::version);
     if (config_file && config_file->corrupt()) std::cout << "{\"configuration_fallback\":true}\n";
     uint16_t sequence=0;
     bool bootloader_mode=false;
@@ -48,6 +48,7 @@ int main(int argc, char** argv) {
         acp_message m{}; m.type=static_cast<uint8_t>(type); m.sequence=sequence++;
         if (type==ACP_SET_SETTING) { m.length=5; m.payload[0]=key; acp_write32(m.payload+1,value); }
         if (type==ACP_SET_ACTION_MAPPING) { m.length=3; m.payload[0]=key; acp_write16(m.payload+1,static_cast<uint16_t>(value)); }
+        if (type==ACP_STANDARD_CONTROL) { m.length=3; m.payload[0]=key; acp_write16(m.payload+1,static_cast<uint16_t>(value)); }
         if (type==ACP_GET_SETTING || type==ACP_GET_DIAGNOSTIC) { m.length=1; m.payload[0]=key; }
         if (type==ACP_HELLO) { m.length=2; m.payload[1]=ACP_MINOR; }
         uint8_t wire[ACP_MAX_FRAME]; size_t n=0;
@@ -74,6 +75,7 @@ int main(int argc, char** argv) {
                     "lifecycle | metadata | diagnostic INDEX | sleep | wake | power on/off\n"
                     "radio healthy/stalled | recover ok/fail | connecting on/off | audio on/off | call on/off\n"
                     "peers 0..2 | active 0..1 | usb-audio on/off | transport bt/usb/both on/off\n";
+                std::cerr << "volume 0..100 | ambient on/off | media 1..6 | touch 1..6\n";
             } else if (cmd=="short") { press(100); advance(401); }
             else if (cmd=="double") { press(100); advance(100); press(100); advance(401); }
             else if (cmd=="long") { press(2000); advance(401); }
@@ -88,6 +90,15 @@ int main(int argc, char** argv) {
             else if (cmd=="state") request(ACP_GET_DEVICE_STATE);
             else if (cmd=="lifecycle") request(ACP_LIFECYCLE_STATE);
             else if (cmd=="metadata") request(ACP_FIRMWARE_METADATA);
+            else if (cmd=="volume" || cmd=="ambient" || cmd=="media" || cmd=="touch") {
+                unsigned value=0;
+                if (cmd=="ambient") { input>>arg; if (arg!="on" && arg!="off") throw 1; value=arg=="on" ? 1 : 0; }
+                else if (!(input>>value) || value>(cmd=="volume" ? 100u : 6u) || (cmd!="volume" && value<1)) throw 1;
+                if (cmd=="touch") host.touches.push_back(static_cast<hal::TouchGesture>(value));
+                else request(ACP_STANDARD_CONTROL,cmd=="volume" ? 1 : cmd=="media" ? 2 : 3,value);
+                core->tick(); advance(1); request(ACP_GET_DEVICE_STATE);
+                request(ACP_GET_SETTING,11); request(ACP_GET_SETTING,12);
+            }
             else if (cmd=="diagnostic") {
                 unsigned index=0; if (!(input>>index) || index>255) throw 1;
                 request(ACP_GET_DIAGNOSTIC,static_cast<uint8_t>(index));
@@ -112,7 +123,8 @@ int main(int argc, char** argv) {
             }
             else if (cmd=="peers" || cmd=="active") {
                 unsigned n=0; if (!(input>>n) || n>(cmd=="peers" ? 2u : 1u) || !host.wireless_enabled) throw 1;
-                if (cmd=="peers") { host.peers=static_cast<uint8_t>(n); host.link=n ? Link::Connected : Link::Disconnected; host.active_peer=n ? 0 : 255; }
+                if (cmd=="peers") { if (n>1 && !host.multipoint_enabled) throw 1;
+                    host.peers=static_cast<uint8_t>(n); host.link=n ? Link::Connected : Link::Disconnected; host.active_peer=n ? 0 : 255; }
                 else { if (n>=host.peers) throw 1; host.active_peer=static_cast<uint8_t>(n); }
                 core->tick(); request(ACP_LIFECYCLE_STATE);
             }
@@ -185,7 +197,7 @@ int main(int argc, char** argv) {
             } else {
                 bootloader_mode=false;
                 host.down=false; host.wireless(true); host.link=Link::Disconnected;
-                core=std::make_unique<Core>(host.platform(),255,identity::version);
+                core=std::make_unique<Core>(host.platform(),511,identity::version);
                 std::cout << "{\"simulated_reboot\":true}\n";
             }
         }

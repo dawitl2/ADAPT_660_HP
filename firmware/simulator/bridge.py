@@ -9,9 +9,9 @@ from pathlib import Path
 MAX_LINE = 2048
 SIMPLE = {"short", "double", "long", "verylong", "down", "up", "hello", "capabilities",
           "state", "lifecycle", "metadata", "sleep", "wake", "pairing"}
-DEBUG = re.compile(r"(?:tick|press|battery|anc|diagnostic|peers|active|get) [0-9]{1,5}|"
+DEBUG = re.compile(r"(?:tick|press|battery|anc|diagnostic|peers|active|get|volume|media|touch) [0-9]{1,5}|"
                    r"(?:map|set) [0-9]{1,3} [0-9]{1,5}|jack (?:in|out)|bt (?:connect|disconnect)|"
-                   r"(?:power|audio|call|connecting|usb-audio|charging) (?:on|off)|"
+                   r"(?:power|audio|call|connecting|usb-audio|charging|ambient) (?:on|off)|"
                    r"radio (?:healthy|stalled)|recover (?:ok|fail)|transport (?:bt|usb|both) (?:on|off)")
 
 

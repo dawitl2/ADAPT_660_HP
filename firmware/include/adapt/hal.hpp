@@ -32,6 +32,19 @@ struct Runtime {
     virtual bool usb_audio_active() const = 0;
     virtual uint32_t boot_reason() const = 0; // 0 unknown, 1 power, 2 software, 3 watchdog
 };
+enum class MediaCommand : uint8_t { PlayPause=1, Next, Previous, AnswerCall, EndCall, ToggleMute };
+enum class TouchGesture : uint8_t { None, Tap, DoubleTap, SwipeUp, SwipeDown, SwipeForward, SwipeBack };
+struct StandardControls {
+    virtual ~StandardControls() = default;
+    virtual uint32_t features() const = 0; // bit0 volume, bit1 media/call, bit2 ambient, bit3 multipoint
+    virtual uint8_t volume() const = 0;
+    virtual bool ambient() const = 0;
+    virtual bool set_volume(uint8_t percent) = 0;
+    virtual bool media(MediaCommand command) = 0;
+    virtual bool set_ambient(bool enabled) = 0;
+    virtual bool set_multipoint(bool enabled) = 0;
+    virtual TouchGesture take_touch() = 0; // already interpreted by verified touch adapter
+};
 struct AncControl { virtual ~AncControl() = default; virtual Anc anc_state() const = 0; virtual bool set_anc(Anc mode) = 0; };
 struct Microphones { virtual ~Microphones() = default; virtual Activity microphone_state() const = 0; };
 struct Speakers { virtual ~Speakers() = default; virtual Activity speaker_state() const = 0; };
@@ -59,5 +72,6 @@ struct Platform {
     Battery& battery; Charger& charger; AnalogJack& jack; WearSensor& wear;
     PersistentSettings& settings; Feedback& feedback; Clock& clock; BootRecovery& boot;
     Runtime* runtime=nullptr; // optional on legacy Phase 1 adapters
+    StandardControls* controls=nullptr;
 };
 }
