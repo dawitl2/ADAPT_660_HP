@@ -40,8 +40,8 @@ import dev.adapt.control.feature.actions.*
                 Surface(color=MaterialTheme.colorScheme.background) {
                     Row(Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal=24.dp,vertical=8.dp),horizontalArrangement=Arrangement.SpaceBetween) {
                         listOf("home" to Icons.Outlined.Home,"actions" to Icons.Outlined.TouchApp,"device" to Icons.Outlined.Headphones,"settings" to Icons.Outlined.Tune).forEach { (route,icon) ->
-                            val selected=destination==route
-                            Column(Modifier.clip(RoundedCornerShape(18.dp)).clickable { nav.navigate(route) { launchSingleTop=true; popUpTo("home") { saveState=true }; restoreState=true } }
+                            val selected=destination==route || (route=="home" && destination in listOf("voice","notes","study"))
+                            Column(Modifier.clip(RoundedCornerShape(18.dp)).clickable { nav.navigate(route) { launchSingleTop=true; popUpTo("home") { saveState=true }; restoreState=route!="home" } }
                                 .padding(horizontal=16.dp,vertical=10.dp),horizontalAlignment=Alignment.CenterHorizontally) {
                                 Icon(icon,route.replaceFirstChar { it.uppercase() },tint=if(selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,modifier=Modifier.size(23.dp))
                                 Spacer(Modifier.height(5.dp)); Text(route.replaceFirstChar { it.uppercase() },style=MaterialTheme.typography.labelSmall,
@@ -67,7 +67,7 @@ import dev.adapt.control.feature.actions.*
     }
 }
 @Composable fun Page(title: String,subtitle: String?=null,content: @Composable ColumnScope.() -> Unit) {
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal=24.dp).padding(top=22.dp,bottom=24.dp),verticalArrangement=Arrangement.spacedBy(18.dp)) {
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal=16.dp).padding(top=18.dp,bottom=24.dp),verticalArrangement=Arrangement.spacedBy(14.dp)) {
         Text(title,style=MaterialTheme.typography.headlineLarge)
         if(subtitle!=null) Text(subtitle,style=MaterialTheme.typography.bodyMedium,color=MaterialTheme.colorScheme.onSurfaceVariant)
         content()
@@ -78,52 +78,69 @@ import dev.adapt.control.feature.actions.*
     val armed by graph.armed.collectAsStateWithLifecycle()
     val prefs by graph.preferences.collectAsStateWithLifecycle()
     val activity by graph.repository.activity.collectAsStateWithLifecycle()
-    val haptic=LocalHapticFeedback.current
-    Page("ADAPT Control") {
-        Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(7.dp)) {
-            Box(Modifier.size(6.dp).background(if(device.connected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,CircleShape))
-            Text(if(device.connected) "Connected to firmware simulator" else "Ready when you are",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-        Column(Modifier.fillMaxWidth(),horizontalAlignment=Alignment.CenterHorizontally) {
-            HeadsetHero()
-            Text("ADAPT 660",style=MaterialTheme.typography.headlineLarge)
-            Spacer(Modifier.height(8.dp))
-            Text(if(device.connected) "${device.battery?.let { "$it% battery" } ?: "Battery unknown"}   ·   ${listOf("ANC unknown","ANC off","ANC on","Adaptive ANC").getOrElse(device.anc){"ANC unknown"}}" else "Connect to make it yours",color=MaterialTheme.colorScheme.onSurfaceVariant,style=MaterialTheme.typography.bodyMedium)
-            Spacer(Modifier.height(12.dp)); Pill(if(device.connected) device.transport else "Disconnected",device.connected)
-        }
-        Group(Modifier.clickable { navigate("actions") }) {
-            Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(16.dp)) {
-                Box(Modifier.size(46.dp).background(MaterialTheme.colorScheme.primary.copy(alpha=.12f),RoundedCornerShape(17.dp)),contentAlignment=Alignment.Center) {
-                    Box(Modifier.width(11.dp).height(24.dp).background(MaterialTheme.colorScheme.primary,CircleShape))
-                }
-                Column(Modifier.weight(1f)) {
-                    Text("PURPLE BUTTON",style=MaterialTheme.typography.labelSmall,letterSpacing=1.4.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)
-                    Text(actionCatalog.firstOrNull { it.id==prefs.mappings[0] }?.title ?: "Custom action",style=MaterialTheme.typography.titleLarge)
-                    Text("One press. A little more possibility.",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-                Text("›",fontSize=28.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal=16.dp).padding(bottom=24.dp),verticalArrangement=Arrangement.spacedBy(16.dp)) {
+        Box(Modifier.fillMaxWidth().height(52.dp),contentAlignment=Alignment.Center) {
+            Text("ADAPT 660",style=MaterialTheme.typography.titleMedium.copy(fontWeight=FontWeight.SemiBold))
+            TextButton(onClick={navigate("settings")},modifier=Modifier.align(Alignment.CenterStart).offset(x=(-12).dp)) {
+                Icon(Icons.Outlined.ChevronLeft,null,modifier=Modifier.size(24.dp)); Text("Settings",fontSize=17.sp)
             }
         }
-        Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(10.dp)) {
-            listOf(Triple("AI Voice","voice",Icons.Outlined.GraphicEq),Triple("Voice Note","notes",Icons.Outlined.MicNone),Triple("Study","study",Icons.Outlined.AutoStories)).forEach { (title,route,icon) ->
-                Surface(Modifier.weight(1f).clickable { haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove); navigate(route) },shape=RoundedCornerShape(22.dp)) {
-                    Column(Modifier.padding(vertical=18.dp),horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.spacedBy(9.dp)) {
-                        Icon(icon,title,tint=MaterialTheme.colorScheme.primary,modifier=Modifier.size(23.dp)); Text(title,style=MaterialTheme.typography.labelMedium)
+        Column(Modifier.fillMaxWidth().padding(top=10.dp,bottom=18.dp),horizontalAlignment=Alignment.CenterHorizontally) {
+            HeadsetHero()
+            Icon(if(device.battery==null) Icons.Outlined.BatteryUnknown else Icons.Outlined.BatteryFull,
+                "Headset battery",modifier=Modifier.size(26.dp),tint=if(device.battery==null) MaterialTheme.colorScheme.onSurfaceVariant else Color(0xff34c759))
+            Text(device.battery?.let { "$it%" } ?: "—",fontSize=22.sp,color=MaterialTheme.colorScheme.onSurface)
+        }
+        Group(Modifier.clickable { navigate("device") }) { DetailRow("Name","ADAPT 660",click={navigate("device")}) }
+        SectionLabel("Noise control")
+        Surface(Modifier.fillMaxWidth(),shape=RoundedCornerShape(13.dp),color=MaterialTheme.colorScheme.surfaceVariant) {
+            Row(Modifier.padding(3.dp),verticalAlignment=Alignment.CenterVertically) {
+                listOf(Triple("Off",Icons.Outlined.VolumeOff,1),Triple("Noise Cancellation",Icons.Outlined.GraphicEq,2),Triple("Adaptive",Icons.Outlined.Hearing,3)).forEach { (name,icon,value) ->
+                    val selected=device.anc==value
+                    Surface(Modifier.weight(1f),shape=RoundedCornerShape(10.dp),color=if(selected) MaterialTheme.colorScheme.surface else Color.Transparent,
+                        shadowElevation=if(selected) 2.dp else 0.dp) {
+                        Column(Modifier.clickable(enabled=device.connected) { graph.run { graph.transport.debug("anc $value") } }.height(83.dp).padding(horizontal=5.dp),
+                            horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.Center) {
+                            Icon(icon,name,modifier=Modifier.size(27.dp),tint=MaterialTheme.colorScheme.onSurface)
+                            Spacer(Modifier.height(8.dp))
+                            Text(name,fontSize=11.sp,lineHeight=13.sp,textAlign=androidx.compose.ui.text.style.TextAlign.Center)
+                        }
                     }
                 }
             }
         }
-        if(!armed) Group {
-            Text("Ready from your pocket",style=MaterialTheme.typography.titleMedium)
-            Text("Enable hands-free mode while the app is open. A persistent notification lets you stop it at any time.",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
-            Button(onClick=arm,shape=CircleShape) { Text("Enable hands-free") }
-        }
-        SectionLabel("Recent activity")
+        SectionLabel("Purple button")
         Group {
-            if(activity.isEmpty()) Text("Your next idea starts here.",color=MaterialTheme.colorScheme.onSurfaceVariant)
-            activity.take(3).forEach { entry -> DetailRow(entry.label,java.text.DateFormat.getTimeInstance(java.text.DateFormat.SHORT).format(java.util.Date(entry.date))) }
+            listOf("Single Press","Double Press","Long Press").forEachIndexed { index,label ->
+                if(index>0) HorizontalDivider(color=MaterialTheme.colorScheme.surfaceVariant,thickness=.5.dp)
+                DetailRow(label,when(prefs.mappings[index]) {1 -> "AI Voice";2 -> "Voice Note";3 -> "Study Companion";else -> actionCatalog.firstOrNull {it.id==prefs.mappings[index]}?.title ?: "Custom"},click={navigate("actions")})
+            }
         }
-        if(device.connected) Text("Firmware ${device.firmware} · ACP 0.1",style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.onSurfaceVariant,modifier=Modifier.align(Alignment.CenterHorizontally))
+        Group {
+            Row(verticalAlignment=Alignment.CenterVertically) {
+                Box(Modifier.size(30.dp).background(Purple,RoundedCornerShape(7.dp)),contentAlignment=Alignment.Center) {
+                    Icon(Icons.Outlined.Headphones,null,tint=Color.White,modifier=Modifier.size(20.dp))
+                }
+                Text("Hands-free",Modifier.weight(1f).padding(start=12.dp),style=MaterialTheme.typography.bodyLarge)
+                AdaptSwitch(armed,{if(it) arm() else graph.disarm()})
+            }
+        }
+        SectionLabel("Your everyday companions")
+        Group {
+            listOf(Triple("AI Voice","voice",Icons.Outlined.GraphicEq),Triple("Voice Note","notes",Icons.Outlined.MicNone),Triple("Study","study",Icons.Outlined.AutoStories)).forEachIndexed { index,(title,route,icon) ->
+                if(index>0) HorizontalDivider(color=MaterialTheme.colorScheme.surfaceVariant,thickness=.5.dp)
+                Row(Modifier.fillMaxWidth().heightIn(min=48.dp).clickable { navigate(route) },verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(12.dp)) {
+                    Icon(icon,title,tint=if(route=="voice") Purple else MaterialTheme.colorScheme.primary,modifier=Modifier.size(25.dp))
+                    Text(title,Modifier.weight(1f),style=MaterialTheme.typography.bodyLarge)
+                    Icon(Icons.Outlined.ChevronRight,null,tint=MaterialTheme.colorScheme.onSurfaceVariant,modifier=Modifier.size(20.dp))
+                }
+            }
+        }
+        Text(if(device.connected) "Connected" else "Not connected",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant,modifier=Modifier.align(Alignment.CenterHorizontally))
+        if(activity.isNotEmpty()) {
+            SectionLabel("Recent activity")
+            Group { activity.take(3).forEach { DetailRow(it.label,java.text.DateFormat.getTimeInstance(java.text.DateFormat.SHORT).format(java.util.Date(it.date))) } }
+        }
     }
 }
 @Composable fun ActionsScreen(graph: AppGraph,flashlightPermission: () -> Unit) {

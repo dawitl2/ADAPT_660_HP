@@ -21,13 +21,13 @@ import javax.crypto.spec.GCMParameterSpec
 import java.util.UUID
 
 val Context.preferences by preferencesDataStore("adapt_preferences")
-data class Preferences(val theme: String="System", val provider: String="Gemini Live", val onboarded: Boolean=false,
+data class Preferences(val theme: String="Light", val provider: String="Gemini Live", val onboarded: Boolean=false,
     val topic: String="Software QA", val mode: String="Quiz", val phoneAction: String="Play / Pause",
     val pcAction: String="play_pause", val selectedUrl: String="https://developer.android.com", val selectedApp: String="",
     val model: String="gemini-3.1-flash-live-preview", val mappings: List<Int> = listOf(1,2,3))
 class SettingsStore(private val context: Context) {
     val flow = context.preferences.data.map { p -> Preferences(
-        p[stringPreferencesKey("theme")] ?: "System",p[stringPreferencesKey("provider")] ?: "Gemini Live",
+        p[stringPreferencesKey("theme")] ?: "Light",p[stringPreferencesKey("provider")] ?: "Gemini Live",
         p[booleanPreferencesKey("onboarded")] ?: false,p[stringPreferencesKey("topic")] ?: "Software QA",
         p[stringPreferencesKey("mode")] ?: "Quiz",p[stringPreferencesKey("phoneAction")] ?: "Play / Pause",
         p[stringPreferencesKey("pcAction")] ?: "play_pause",p[stringPreferencesKey("url")] ?: "https://developer.android.com",

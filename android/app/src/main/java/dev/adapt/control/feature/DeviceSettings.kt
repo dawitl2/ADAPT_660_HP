@@ -28,23 +28,22 @@ import kotlinx.coroutines.delay
     var advanced by remember { mutableStateOf(false) }
     var region by remember { mutableStateOf("Purple button") }
     Page("Your headset","Every control, thoughtfully connected.") {
-        HeadsetHero(highlight=region)
+        HeadsetHero(highlight=region,onRegion={region=it})
         Row(Modifier.horizontalScroll(rememberScrollState()),horizontalArrangement=Arrangement.spacedBy(8.dp)) {
             listOf("Purple button","Touch surface","ANC switch","Bluetooth control","USB","Audio jack").forEach { label ->
                 FilterChip(region==label,{ region=label },{ Text(label) })
             }
         }
-        Text(when(region) { "Purple button" -> "Short · double · long. Recovery is protected."; "Touch surface" -> "Vendor touch controls remain behind the firmware HAL."; else -> "${region}: physical pinout and custom firmware support are UNKNOWN." },style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(when(region) { "Purple button" -> "Your shortcuts, just a press away."; "Touch surface" -> "Music and calls at your fingertips."; "ANC switch" -> "Find your quiet."; "Bluetooth control" -> "Stay connected, wirelessly."; "USB" -> "Charge up for what comes next."; else -> "A direct connection to your sound." },style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
         Group { DetailRow("Connection",if(device.connected) "Connected" else "Disconnected",device.transport); TextButton(onClick=associate) { Text("Associate ADAPT 660") } }
-        Group { DetailRow("Battery",device.battery?.let { "$it%" } ?: "Unknown"); DetailRow("Audio",if(audio.startsWith("ADAPT")) "Headset" else "Inactive",audio) }
+        Group { DetailRow("Battery",device.battery?.let { "$it%" } ?: "—"); DetailRow("Audio",if(audio.startsWith("ADAPT")) "Headset" else "Inactive") }
         Group {
-            DetailRow("Noise control",listOf("Unknown","Off","On","Adaptive").getOrElse(device.anc){"Unknown"})
+            DetailRow("Noise control",listOf("—","Off","On","Adaptive").getOrElse(device.anc){"—"})
             Row(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
                 listOf("Off","On","Adaptive").forEachIndexed { i,name -> FilterChip(device.anc==i+1,{ graph.run { graph.transport.debug("anc ${i+1}") } },{ Text(name) },enabled=device.connected) }
             }
-            Text("Controls apply to the firmware simulator until a real transport is verified.",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
         }
-        Group { DetailRow("Firmware",device.firmware); DetailRow("Protocol","ACP 0.1"); DetailRow("Physical target","UNKNOWN") }
+        Group { DetailRow("Model","ADAPT 660"); DetailRow("Firmware",if(device.connected) device.firmware else "—") }
         Group {
             DetailRow("Engineering Mode",if(advanced) "Open" else "Advanced",click={ advanced=!advanced })
             if(advanced) {
@@ -69,6 +68,7 @@ import kotlinx.coroutines.delay
     val prefs by graph.preferences.collectAsStateWithLifecycle()
     val armed by graph.armed.collectAsStateWithLifecycle()
     val phone by graph.allowPhone.collectAsStateWithLifecycle()
+    val timings by graph.timings.collectAsStateWithLifecycle()
     val context=LocalContext.current
     var bridgeToken by remember { mutableStateOf("") }
     var pcUrl by remember { mutableStateOf(graph.vault.get("pc_url")) }
@@ -80,19 +80,27 @@ import kotlinx.coroutines.delay
         Group {
             DetailRow("Associate companion","Connect",click=associate)
             DetailRow("Bluetooth audio","Android settings",click={ context.startActivity(Intent(Settings.ACTION_BLUETOOTH_SETTINGS)) })
-            Row(verticalAlignment=Alignment.CenterVertically) { Text("Hands-free mode",Modifier.weight(1f)); Switch(armed,{ if(it) arm() else graph.disarm() }) }
-            Text("Start while visible. After reboot or stopping the service, enable it again. Samsung: Settings → Apps → ADAPT Control → Battery → Unrestricted; add to Never sleeping apps.",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+            Row(verticalAlignment=Alignment.CenterVertically) { Text("Hands-free mode",Modifier.weight(1f)); AdaptSwitch(armed,{ if(it) arm() else graph.disarm() }) }
+            Text("Enable here before putting your phone away. For the best experience, allow unrestricted battery use.",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
             TextButton(onClick={ context.startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,Uri.parse("package:${context.packageName}"))) }) { Text("App & battery settings") }
+        }
+        SectionLabel("Purple Button")
+        Group {
+            Text("Gesture timing",style=MaterialTheme.typography.titleMedium)
+            if(timings.isEmpty()) Text("Connect your headset to adjust press timing.",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+            listOf("Short press maximum","Double press window","Long press threshold","Protected recovery threshold","Debounce").forEachIndexed { i,label ->
+                timings[i+1]?.let { ms -> SmallField("$label · ms",ms.toString()) { value -> graph.run { graph.timing(i+1,value.toLongOrNull() ?: error("Enter milliseconds")) } } }
+            }
+            Text("Firmware validates the timing combination. Protected recovery cannot be remapped or disabled.",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
         }
         SectionLabel("AI Provider")
         Group {
             ChoiceRow("Provider",prefs.provider,listOf("Gemini Live","System assistant")) { graph.run { graph.settings.set("provider",it) } }
-            Text("Gemini Live uses the integrated voice provider. System assistant opens Android’s configured assistant from a visible screen; its Gemini Live and lock-screen behavior is controlled by Android.",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
-            SmallField("Gemini Live model",prefs.model) { graph.run { graph.settings.set("model",it) } }
+            Text("Choose the voice experience that suits you.",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
         }
         SectionLabel("Voice")
         Group {
-            Row(verticalAlignment=Alignment.CenterVertically) { Column(Modifier.weight(1f)) { Text("Allow phone audio"); Text("For testing without the headset",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant) }; Switch(phone,{ graph.allowPhone.value=it }) }
+            Row(verticalAlignment=Alignment.CenterVertically) { Column(Modifier.weight(1f)) { Text("Allow phone audio"); Text("Use your phone when the headset is away",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant) }; AdaptSwitch(phone,{ graph.allowPhone.value=it }) }
             Text("No continuous recording. Losing the selected headset or audio focus ends capture.",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
         }
         SectionLabel("Study")
@@ -112,6 +120,7 @@ import kotlinx.coroutines.delay
         Group {
             DetailRow("Simulator setup",if(advanced) "Open" else "Show",click={advanced=!advanced})
             if(advanced) {
+                SmallField("Gemini Live model",prefs.model) { graph.run { graph.settings.set("model",it) } }
                 Text("Start the Phase 2 bridge on the PC, then use adb reverse tcp:6600 tcp:6600. The token stays in Android Keystore-protected storage.",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
                 OutlinedTextField(bridgeToken,{ bridgeToken=it },label={Text("Simulator token")},singleLine=true,modifier=Modifier.fillMaxWidth(),shape=RoundedCornerShape(18.dp),visualTransformation=androidx.compose.ui.text.input.PasswordVisualTransformation())
                 Button(onClick={ graph.run { if(bridgeToken.isNotBlank()) { graph.vault.put("bridge_token",bridgeToken.trim()); bridgeToken="" }; graph.connect() } },shape=CircleShape) { Text("Connect simulator") }
@@ -119,30 +128,28 @@ import kotlinx.coroutines.delay
             TextButton(onClick={ graph.run { graph.settings.set("provider","Gemini Live"); graph.message.value="Gemini Live selected" } }) { Text("Use integrated Gemini") }
         }
         SectionLabel("About")
-        Group { DetailRow("ADAPT Control","0.3.0"); Text("Independent engineering project. No database service. Settings, notes and study history stay in this app. Live AI sends requested session audio to Google.",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant) }
+        Group { DetailRow("ADAPT Control","0.3.0"); Text("Made for your ideas, your sound, your day. Notes and study history stay on your phone. Live AI shares session audio with your selected provider.",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant) }
     }
 }
 @Composable fun Onboarding(graph: AppGraph,arm: () -> Unit,associate: () -> Unit,modifier: Modifier) {
-    var step by rememberSaveable { mutableIntStateOf(0) }
-    val context=LocalContext.current
-    val prefs by graph.preferences.collectAsStateWithLifecycle()
     PageContent(modifier) {
-        Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween) { Text("ADAPT / CONTROL",style=MaterialTheme.typography.labelMedium,letterSpacing=2.sp); Pill("${step+1} of 5") }
-        HeadsetHero()
-        Text(listOf("Your headset.\nYour possibilities.","Make the connection.","Ready from your pocket.","A voice, on your terms.","Meet the purple button.")[step],style=MaterialTheme.typography.headlineLarge)
-        Text(listOf("Welcome to ADAPT Control. A thoughtful home for your headset, ideas and everyday actions.",
-            "Pair ADAPT 660 audio in Android settings, then associate it here. The firmware simulator supplies button events until custom hardware firmware is ready.",
-            "Enable hands-free mode while this screen is visible. Microphone access is used only during a requested voice or note session. A notification gives you an immediate stop control.",
-            "Integrated Gemini Live connects through Google’s AI Logic client. No database is required. Add local project configuration to enable live calls. Android’s system assistant is an optional visible-screen route.",
-            "Single press: AI Voice. Double press: Voice Note. Long press: Study. Very long press: protected Pairing / Recovery. Test simulator gestures in Device → Engineering Mode.")[step],style=MaterialTheme.typography.bodyLarge,color=MaterialTheme.colorScheme.onSurfaceVariant)
-        when(step) {
-            1 -> { Button(onClick={ context.startActivity(Intent(Settings.ACTION_BLUETOOTH_SETTINGS)) },shape=CircleShape) { Text("Bluetooth settings") }; OutlinedButton(onClick=associate,shape=CircleShape) { Text("Associate headset") } }
-            2 -> { Button(onClick=arm,shape=CircleShape) { Text("Enable hands-free") }; TextButton(onClick={ context.startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,Uri.parse("package:${context.packageName}"))) }) { Text("Samsung battery settings") } }
-            3 -> ChoiceRow("AI provider",prefs.provider,listOf("Gemini Live","System assistant")) { graph.run { graph.settings.set("provider",it) } }
+        Text("ADAPT / CONTROL",style=MaterialTheme.typography.labelMedium,letterSpacing=2.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)
+        Spacer(Modifier.height(12.dp))
+        HeadsetHero(highlight="Purple button")
+        Text("Your headset.\nYour possibilities.",style=MaterialTheme.typography.headlineLarge)
+        Text("A thoughtful home for your sound, your ideas and everything that comes next.",style=MaterialTheme.typography.bodyLarge,color=MaterialTheme.colorScheme.onSurfaceVariant)
+        Group {
+            listOf(Triple(Icons.Outlined.GraphicEq,"AI Voice","A conversation, just a press away."),
+                Triple(Icons.Outlined.MicNone,"Voice Notes","Catch an idea before it slips away."),
+                Triple(Icons.Outlined.AutoStories,"Study Companion","Make a little progress, anywhere.")).forEach { (icon,title,caption) ->
+                Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(16.dp)) {
+                    Icon(icon,null,tint=MaterialTheme.colorScheme.primary,modifier=Modifier.size(24.dp))
+                    Column { Text(title,style=MaterialTheme.typography.titleSmall); Text(caption,style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant) }
+                }
+            }
         }
-        Spacer(Modifier.height(16.dp))
-        Button(onClick={ if(step<4) step++ else graph.run { graph.settings.finishOnboarding() } },modifier=Modifier.fillMaxWidth().height(56.dp),shape=CircleShape) { Text(if(step==4) "Start exploring" else "Continue") }
-        if(step>0) TextButton(onClick={step--},modifier=Modifier.align(Alignment.CenterHorizontally)) { Text("Back") }
+        Button(onClick={ graph.run { graph.settings.finishOnboarding() } },modifier=Modifier.fillMaxWidth().height(56.dp),shape=CircleShape) { Text("Get started",style=MaterialTheme.typography.titleMedium) }
+        Text("Make the purple button yours.",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant,modifier=Modifier.align(Alignment.CenterHorizontally))
     }
 }
 @Composable private fun PageContent(modifier: Modifier,content: @Composable ColumnScope.() -> Unit) {
