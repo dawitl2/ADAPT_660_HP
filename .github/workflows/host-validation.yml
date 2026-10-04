@@ -27,3 +27,19 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: ./tools/usb/inventory.ps1 -Output research/ci-usb.json
+  sanitizers:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Configure address and undefined behavior sanitizers
+        run: cmake -S firmware -B build-sanitized -DCMAKE_BUILD_TYPE=Debug -DADAPT_SANITIZERS=ON -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++
+      - name: Build
+        run: cmake --build build-sanitized --parallel 2
+      - name: Firmware, parser mutation corpus and TCP bridge
+        env:
+          ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
+          UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+        run: ctest --test-dir build-sanitized --output-on-failure
