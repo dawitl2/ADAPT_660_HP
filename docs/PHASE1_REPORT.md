@@ -64,6 +64,9 @@ ADAPT_660_HP/
   captures, generated builds or signing materials included.
 - Windows/Linux GitHub Actions workflow added; local results do not imply that
   hosted CI has already completed. See Actions for current remote result.
+  Initial Linux hosted CI passed; Windows MSVC identified a runtime enum-to-byte
+  narrowing warning in simulator command dispatch. The boundary now performs an
+  explicit conversion; all protocol message values are defined within one byte.
 
 ## Hardware/firmware findings and limits
 
@@ -110,6 +113,6 @@ b1fa65e test: cover every protocol shape and enforce simulated bootloader lifecy
 3e8e6db test: verify Python client interoperability through simulator frames
 ```
 
-The final report commit follows these implementation commits. To reproduce the
+The report and subsequent portability-fix commits follow these implementation commits. To reproduce the
 complete phase list: `git log --reverse --oneline c6b3c1d..HEAD`. Preserve history
 and push `main` to the verified `dawitl2/ADAPT_660_HP` origin without force/squash.

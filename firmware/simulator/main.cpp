@@ -36,8 +36,8 @@ int main() {
     auto advance=[&](uint32_t ms) { for (uint32_t i=0;i<ms;++i) { ++host.time; core->tick(); } };
     auto level=[&](bool down) { host.down=down; core->tick(); advance(25); };
     auto press=[&](uint32_t duration) { level(true); advance(duration-25); level(false); };
-    auto request=[&](uint8_t type, uint8_t key=0, uint32_t value=0) {
-        acp_message m{}; m.type=type; m.sequence=sequence++;
+    auto request=[&](acp_type type, uint8_t key=0, uint32_t value=0) {
+        acp_message m{}; m.type=static_cast<uint8_t>(type); m.sequence=sequence++;
         if (type==ACP_SET_SETTING) { m.length=5; m.payload[0]=key; acp_write32(m.payload+1,value); }
         if (type==ACP_SET_ACTION_MAPPING) { m.length=3; m.payload[0]=key; acp_write16(m.payload+1,static_cast<uint16_t>(value)); }
         if (type==ACP_GET_SETTING) { m.length=1; m.payload[0]=key; }
