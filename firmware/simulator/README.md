@@ -32,3 +32,5 @@ quit
 Boot requests default to denied. `allow-boot on` enables host-only simulated
 requests; it is not a physical bootloader permission. `power-on` recreates the
 core, retaining in-process settings. No binary is sent to a headset.
+After entering simulated bootloader, firmware commands/gestures are blocked until
+`power-on`. This host mode provides no image upload or flash operation.

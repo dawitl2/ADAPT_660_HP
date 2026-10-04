@@ -1,6 +1,7 @@
 #include "adapt/core.hpp"
 #include "adapt/host.hpp"
 #include <iomanip>
+#include <cctype>
 #include <iostream>
 #include <memory>
 #include <sstream>
@@ -31,6 +32,7 @@ int main() {
     host::Backend host;
     auto core=std::make_unique<Core>(host.platform(),31,"0.1.0-host");
     uint16_t sequence=0;
+    bool bootloader_mode=false;
     auto advance=[&](uint32_t ms) { for (uint32_t i=0;i<ms;++i) { ++host.time; core->tick(); } };
     auto level=[&](bool down) { host.down=down; core->tick(); advance(25); };
     auto press=[&](uint32_t duration) { level(true); advance(duration-25); level(false); };
@@ -50,6 +52,7 @@ int main() {
         try {
             if (cmd.empty()) continue;
             if (cmd=="quit") break;
+            if (bootloader_mode && cmd!="power-on" && cmd!="help") throw 1;
             if (cmd=="help") {
                 std::cerr << "short | double | long | verylong | press MS | down | up | tick MS\n"
                     "hello | capabilities | state | ping | pairing | battery 0..100 | anc 1..3\n"
@@ -97,6 +100,7 @@ int main() {
                 request(ACP_GET_DEVICE_STATE);
             } else if (cmd=="rx") {
                 input >> arg; if (arg.size()>ACP_MAX_FRAME*2 || arg.size()%2) throw 1;
+                for (const unsigned char c : arg) if (!std::isxdigit(c)) throw 1;
                 std::vector<uint8_t> wire;
                 for (size_t i=0;i<arg.size();i+=2) {
                     const auto part=arg.substr(i,2); size_t used=0;
@@ -110,9 +114,11 @@ int main() {
         if (host.boot_pending) {
             host.boot_pending=false;
             if (host.boot_kind==hal::BootRequest::Bootloader) {
+                bootloader_mode=true;
                 std::cout << "{\"simulated_bootloader\":true,\"physical_backend\":false}\n";
                 // No flash protocol; next power-on leaves simulated bootloader.
             } else {
+                bootloader_mode=false;
                 host.down=false; host.wireless(true); host.link=Link::Disconnected;
                 core=std::make_unique<Core>(host.platform(),31,"0.1.0-host");
                 std::cout << "{\"simulated_reboot\":true}\n";

@@ -1,5 +1,6 @@
 #pragma once
 #include "adapt/button.hpp"
+#include "adapt_protocol.h"
 #include <array>
 
 namespace adapt {
@@ -9,8 +10,10 @@ enum class Activity : uint8_t { Unknown, Inactive, Active };
 enum class Charging : uint8_t { Unknown, No, Yes };
 enum class Mode : uint8_t { Wireless, Analog, ToAnalog, ToWireless, WirelessRecovery };
 enum class Action : uint16_t {
-    VoiceAssistant = 1, VoiceNote, StudyCompanion, PhoneAction, PcAction,
-    CombinedAction, Custom1 = 16, Custom2, Custom3, Custom4, Custom5, Custom6, Custom7, Custom8
+    VoiceAssistant = ACP_VOICE_ASSISTANT, VoiceNote = ACP_VOICE_NOTE,
+    StudyCompanion = ACP_STUDY_COMPANION, PhoneAction = ACP_PHONE_ACTION,
+    PcAction = ACP_PC_ACTION, CombinedAction = ACP_COMBINED_ACTION,
+    Custom1 = ACP_CUSTOM_ACTION_1, Custom2, Custom3, Custom4, Custom5, Custom6, Custom7, Custom8
 };
 inline bool valid_action(uint16_t id) { return (id >= 1 && id <= 6) || (id >= 16 && id <= 23); }
 struct Settings {
