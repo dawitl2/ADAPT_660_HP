@@ -1,3 +1,5 @@
+![ADAPT 660 HP — Intelligent Sound](assets/adapt-660-hp-intelligent-sound.png)
+
 # ADAPT 660 HP · ADAPT Control
 
 **Voice. Ideas. Focus. One button.**
