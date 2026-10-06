@@ -1,7 +1,5 @@
 ![ADAPT 660 HP — Intelligent Sound](assets/adapt-660-hp-intelligent-sound.png)
 
-# ADAPT 660 HP · ADAPT Control
-
 **Voice. Ideas. Focus. One button.**
 
 **ADAPT 660 HP** brings a programmable firmware control engine and a native Android experience to the **EPOS / Sennheiser ADAPT 660**. **ADAPT Control** connects headset actions with AI voice, instant voice notes, guided study and everyday phone and PC shortcuts.
